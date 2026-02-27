@@ -1,0 +1,82 @@
+{
+  "name": "@coloristic.org/darkroom",
+  "version": "0.1.1",
+  "description": "A local-first, framework-independent TypeScript photo-grading and 3D LUT engine.",
+  "type": "module",
+  "license": "MIT",
+  "author": {
+    "name": "Yasir Dora",
+    "url": "https://ysr.design"
+  },
+  "homepage": "https://darkroom.ysr.design",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yasirdora/darkroom.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Yasirdora/darkroom/issues"
+  },
+  "keywords": [
+    "photo-editor",
+    "photo-editing",
+    "color-grading",
+    "color-science",
+    "image-processing",
+    "lut",
+    "3d-lut",
+    "typescript",
+    "browser",
+    "web-worker",
+    "local-first"
+  ],
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0 || ^26.0.0"
+  },
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js",
+      "default": "./dist/browser/index.js"
+    },
+    "./presets": {
+      "types": "./dist/presets/index.d.ts",
+      "import": "./dist/presets/index.js",
+      "default": "./dist/presets/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "clean": "node ./scripts/clean.mjs",
+    "build": "npm run clean && tsc -p tsconfig.build.json && tsc -p tsconfig.browser.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit && tsc -p tsconfig.browser.json --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
+    "verify": "node ./scripts/verify-tarball.mjs",
+    "smoke": "node ./scripts/smoke-package.mjs",
+    "smoke:built": "node ./scripts/smoke-package.mjs --skip-build",
+    "check": "npm run typecheck && npm run test:coverage && npm run build && npm run verify && npm run smoke:built",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.10"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

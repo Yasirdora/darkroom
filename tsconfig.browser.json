@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src/browser/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "test", "dist"]
+}
