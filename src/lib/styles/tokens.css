@@ -1,0 +1,53 @@
+/* Design tokens — Apple clarity × Google structure × Blackmagic precision */
+
+:root {
+  color-scheme: dark light;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --canvas-bg: #f5f5f7;
+  --canvas-elevated: #ffffff;
+  --canvas-border: rgba(0, 0, 0, 0.06);
+
+  --inspector-bg: #000000;
+  --inspector-elevated: #141416;
+  --inspector-border: rgba(255, 255, 255, 0.08);
+  --inspector-text: #f5f5f7;
+  --inspector-muted: rgba(245, 245, 247, 0.56);
+  --inspector-subtle: rgba(245, 245, 247, 0.34);
+
+  --accent: #0a84ff;
+  --accent-hover: #409cff;
+  --accent-glow: rgba(10, 132, 255, 0.42);
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+
+  --shadow-canvas: 0 24px 80px rgba(0, 0, 0, 0.12);
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.28);
+
+  --inspector-width: 290px; /* tighter, less bulky */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Text',
+    'SF Pro Display',
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    sans-serif;
+  font-size: 13px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}

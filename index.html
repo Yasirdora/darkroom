@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#000000" />
+
+    <title>Coloristic Darkroom — Browser Photo Editor &amp; Color Grading</title>
+    <meta name="description" content="%SITE_DESCRIPTION%" />
+    <meta name="keywords" content="%SITE_KEYWORDS%" />
+    <meta name="author" content="%SITE_AUTHOR%" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="%SITE_URL%/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="%SITE_NAME%" />
+    <meta property="og:title" content="Coloristic Darkroom — Browser Photo Editor &amp; Color Grading" />
+    <meta property="og:description" content="%SITE_DESCRIPTION%" />
+    <meta property="og:url" content="%SITE_URL%/" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="%SITE_URL%/images/samples/misty_valley.jpg" />
+    <meta property="og:image:alt" content="Misty valley landscape sample graded in Coloristic Darkroom" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Coloristic Darkroom — Browser Photo Editor &amp; Color Grading" />
+    <meta name="twitter:description" content="%SITE_DESCRIPTION%" />
+    <meta name="twitter:image" content="%SITE_URL%/images/samples/misty_valley.jpg" />
+    <meta name="twitter:image:alt" content="Misty valley landscape sample graded in Coloristic Darkroom" />
+
+    <meta name="application-name" content="%SITE_NAME%" />
+    <meta name="apple-mobile-web-app-title" content="Darkroom" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+      }
+
+      #app {
+        min-height: 100%;
+      }
+    </style>
+
+    <link rel="icon" type="image/svg+xml" href="/favicon-light.svg" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "%SITE_NAME%",
+        "description": "%SITE_DESCRIPTION%",
+        "url": "%SITE_URL%/",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Web browser",
+        "browserRequirements": "Requires JavaScript. Requires a modern browser with WebGL.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "%SITE_AUTHOR%"
+        },
+        "featureList": [
+          "Exposure and color adjustments",
+          "Tone curves",
+          "Film stock filters",
+          "Log input profiles",
+          "Reference color matching",
+          "Crop and export"
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <noscript>
+      <p>
+        Coloristic Darkroom requires JavaScript. Please enable JavaScript to use the photo editor.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

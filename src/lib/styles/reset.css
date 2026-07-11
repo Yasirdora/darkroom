@@ -1,0 +1,42 @@
+* {
+  box-sizing: border-box;
+}
+
+/* Components with display:flex/grid override the UA [hidden] rule — restore it globally */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #0b0b0c;
+  color: var(--inspector-text);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+/* Avoid the 300ms tap delay / accidental double-tap zoom on controls */
+button,
+select,
+input[type='range'],
+input[type='checkbox'],
+input[type='color'] {
+  touch-action: manipulation;
+}
+
+button {
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+}

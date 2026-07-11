@@ -1,0 +1,12 @@
+<svg width="66" height="66" viewBox="0 0 66 66" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .bg { fill: #ffffff; }
+    .mark { stroke: #000000; }
+    @media (prefers-color-scheme: light) {
+      .bg { fill: #000000; }
+      .mark { stroke: #ffffff; }
+    }
+  </style>
+  <rect class="bg" width="66" height="66" rx="9"/>
+  <rect class="mark" x="41.75" y="16.75" width="7.5" height="7.5" stroke-width="7.5"/>
+</svg>

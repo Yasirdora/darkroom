@@ -1,0 +1,5 @@
+@import '$lib/styles/tokens.css';
+@import '$lib/styles/reset.css';
+@import '$lib/styles/global.css';
+@import '$lib/styles/legacy.css';
+@import '$lib/styles/utilities.css';
