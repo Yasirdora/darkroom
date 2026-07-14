@@ -3,6 +3,7 @@ import type { EditState } from '../core/types';
 import { applyAdjustments } from './adjustments';
 import { applyEffect } from './effects';
 import { applyFilter } from './filters';
+import { applyLut } from './lut';
 import { applyTransform, applyTransformForExport } from './transform';
 import { applyCurves } from './curves';
 import { applyColorMatch } from './color-match';
@@ -29,17 +30,20 @@ const runEffects = (
   // The blend base must be the post-adjustments/post-curves image — blending
   // against the raw source would wipe the user's grade outside the mask.
   const maskBase = current;
+  const hasLook = state.filterId !== 'none' || state.importedLut !== null;
   const selectiveFilter =
-    state.qualifier?.enabled &&
-    state.filterId !== 'none' &&
-    !isFullHueSelection(state.qualifier);
+    state.qualifier?.enabled && hasLook && !isFullHueSelection(state.qualifier);
 
   let qualMask: Float32Array | null = null;
   if (selectiveFilter) {
     qualMask = buildQualifierMask(current, state.qualifier);
   }
 
-  current = applyFilter(current, state.filterId, state.filterIntensity);
+  if (state.importedLut) {
+    current = applyLut(current, state.importedLut.data, state.filterIntensity);
+  } else {
+    current = applyFilter(current, state.filterId, state.filterIntensity);
+  }
 
   let effected = applyEffect(
     current,

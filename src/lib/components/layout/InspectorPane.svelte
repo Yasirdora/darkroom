@@ -3,8 +3,7 @@
   import FilterPanel from '$lib/components/inspector/FilterPanel.svelte';
   import InspectorFooter from '$lib/components/inspector/InspectorFooter.svelte';
   import TabRail from '$lib/components/inspector/TabRail.svelte';
-  import HistogramView from '$lib/components/shared/HistogramView.svelte';
-  import Collapsible from '$lib/components/shared/Collapsible.svelte';
+  import ScopePanel from '$lib/components/inspector/ScopePanel.svelte';
   import type { TabId } from '$lib/core/types';
   import { getEditorContext } from '$lib/state/context';
   import { onMount } from 'svelte';
@@ -33,13 +32,12 @@
 
   const ctx = getEditorContext();
 
-  let histogramCollapsed = $state(false);
+  let scopesCollapsed = $state(false);
 
-  const histogram = $derived(ctx.snapshot.histogram);
   const hasImage = $derived(ctx.snapshot.hasImage);
 
   onMount(() => {
-    if (window.innerWidth <= 820) histogramCollapsed = true;
+    if (window.innerWidth <= 820) scopesCollapsed = true;
   });
 
   const handleTabChange = (tab: TabId) => {
@@ -50,11 +48,7 @@
 
 <aside class="inspector-pane" aria-label="Inspector">
   <header class="inspector-head">
-    <Collapsible title="Histogram" bind:collapsed={histogramCollapsed}>
-      <div class="histogram-canvas-wrap">
-        <HistogramView data={histogram} />
-      </div>
-    </Collapsible>
+    <ScopePanel bind:collapsed={scopesCollapsed} />
 
     <TabRail {activeTab} onTabChange={handleTabChange} />
   </header>

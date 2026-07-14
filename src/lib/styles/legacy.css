@@ -1939,6 +1939,197 @@
   background: rgba(0, 0, 0, 0.28);
 }
 
+.vectorscope-canvas-wrap,
+.scope-panel-body .histogram-canvas-wrap {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.vectorscope-canvas {
+  display: block;
+  width: 100%;
+  height: 88px;
+}
+
+.scope-mode-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--inspector-border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.scope-mode-tab {
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--inspector-muted);
+  cursor: pointer;
+}
+
+.scope-mode-tab.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.cinema-looks-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--inspector-border);
+}
+
+.cinema-looks-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.cinema-looks-title,
+.lut-import-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--inspector-text);
+}
+
+.cinema-looks-sub,
+.lut-import-sub {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--inspector-muted);
+}
+
+.cinema-looks-sub a {
+  color: #7ec8ff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cinema-looks-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.cinema-look-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--inspector-border);
+  background: rgba(255, 255, 255, 0.02);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cinema-look-card.is-selected {
+  border-color: rgba(10, 132, 255, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.35);
+}
+
+.cinema-look-card:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cinema-look-thumb {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  background-size: cover;
+  background-position: center;
+}
+
+.cinema-look-thumb-fallback {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.22), rgba(14, 165, 233, 0.18));
+}
+
+.cinema-look-thumb.has-image .cinema-look-thumb-fallback {
+  opacity: 0;
+}
+
+.cinema-look-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--inspector-text);
+}
+
+.cinema-look-tagline {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--inspector-muted);
+}
+
+.lut-import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--inspector-border);
+}
+
+.lut-import-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.lut-import-btn {
+  flex-shrink: 0;
+  min-height: 34px;
+  font-size: 11px;
+}
+
+.lut-import-active {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(10, 132, 255, 0.28);
+  background: rgba(10, 132, 255, 0.08);
+}
+
+.lut-import-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--inspector-text);
+}
+
+.lut-import-clear {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7ec8ff;
+  cursor: pointer;
+}
+
+.lut-import-error {
+  margin: 0;
+  font-size: 11px;
+  color: #fbbf24;
+}
+
 .histogram-canvas {
   display: block;
   width: 100%;

@@ -22,3 +22,6 @@ export const SITE_KEYWORDS = [
 export const SITE_AUTHOR = 'Ysr';
 
 export const SITE_DEFAULT_URL = 'https://darkroom.ysr.design';
+
+/** coloristic.org filmmaker hub — palette planning & look library. */
+export const COLORISTIC_FILM_URL = 'https://coloristic.org/film/';

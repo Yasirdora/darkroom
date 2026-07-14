@@ -243,11 +243,15 @@ export interface EditState {
   qualifier: QualifierConfig;
   advancedEffect: AdvancedEffectParams;
   colorMatch: ColorMatchState;
+  /** User-imported .cube LUT (replaces built-in filter when set). */
+  importedLut: ImportedLutState | null;
 }
 
 export type ExportFormat = 'png' | 'jpeg' | 'webp';
+export type ExportKind = 'image' | 'lut';
 
 export interface ExportSettings {
+  kind: ExportKind;
   format: ExportFormat;
   quality: number;
   scale: number;
@@ -259,6 +263,17 @@ export interface HistogramData {
   b: Uint32Array;
   luminance: Uint32Array;
   peak: number;
+}
+
+export interface VectorscopeData {
+  bins: Uint32Array;
+  size: number;
+  peak: number;
+}
+
+export interface ImportedLutState {
+  title: string;
+  data: Uint8Array;
 }
 
 export interface FilterDefinition {

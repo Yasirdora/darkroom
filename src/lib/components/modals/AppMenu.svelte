@@ -1,5 +1,6 @@
 <script lang="ts">
   import { on } from 'svelte/events';
+  import { COLORISTIC_FILM_URL } from '$lib/constants/site';
 
   export type MenuAction = 'about' | 'help' | 'shortcuts' | 'contact';
 
@@ -116,5 +117,16 @@
         {item.label}
       </button>
     {/each}
+    <div class="app-menu-separator" role="separator"></div>
+    <a
+      href={COLORISTIC_FILM_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="app-menu-item"
+      role="menuitem"
+      onclick={close}
+    >
+      Coloristic Film Hub
+    </a>
   </div>
 </div>

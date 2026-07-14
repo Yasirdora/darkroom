@@ -91,9 +91,11 @@ export const DEFAULT_EDIT_STATE: EditState = {
   qualifier: { ...DEFAULT_QUALIFIER },
   advancedEffect: { ...DEFAULT_ADVANCED_EFFECT },
   colorMatch: { ...DEFAULT_COLOR_MATCH },
+  importedLut: null,
 };
 
 export const DEFAULT_EXPORT_SETTINGS = {
+  kind: 'image' as const,
   format: 'png' as const,
   quality: 92,
   scale: 1,

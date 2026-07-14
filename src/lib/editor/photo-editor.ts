@@ -9,12 +9,15 @@ import type {
   ExportSettings,
   FilterId,
   HistogramData,
+  ImportedLutState,
   InputProfileId,
   Transform,
+  VectorscopeData,
 } from '../core/types';
 import { computeAutoEnhance, computeAutoWhiteBalance } from '../processing/auto-enhance';
 import { computeColorMatchStats } from '../processing/color-match';
 import { computeHistogram } from '../processing/histogram';
+import { computeVectorscope } from '../processing/vectorscope';
 import { applyInputProfile, coerceInputProfile, decodeToLinearValue, getRecommendedInputExposure, getSceneLinearLuminance } from '../processing/input-profile';
 import {
   detectInputProfileFromHeader,
@@ -102,6 +105,7 @@ export interface EditorSnapshot {
   isFullResReady: boolean;
   hasPendingCrop: boolean;
   histogram: HistogramData | null;
+  vectorscope: VectorscopeData | null;
   autoToneSummary: string | null;
   inputProfileAutoDetected: boolean;
 }
@@ -130,6 +134,7 @@ export class PhotoEditor {
   private previewBuffer: ImageBuffer | null = null;
   private fullBuffer: ImageBuffer | null = null;
   private histogram: HistogramData | null = null;
+  private vectorscope: VectorscopeData | null = null;
   private autoToneSummary: string | null = null;
   private previewFrame: number | null = null;
   private fullResTimer: ReturnType<typeof setTimeout> | null = null;
@@ -174,6 +179,7 @@ export class PhotoEditor {
       isFullResReady: this.isFullResReady,
       hasPendingCrop: this.hasPendingCrop(),
       histogram: this.histogram,
+      vectorscope: this.vectorscope,
       autoToneSummary: this.autoToneSummary,
       inputProfileAutoDetected: this.inputProfileAutoDetected,
     };
@@ -263,6 +269,7 @@ export class PhotoEditor {
     this.previewBuffer = null;
     this.fullBuffer = null;
     this.histogram = null;
+    this.vectorscope = null;
     this.isFullResReady = false;
     this.invalidatePreviewCache();
     this.state = structuredClone(DEFAULT_EDIT_STATE);
@@ -597,7 +604,31 @@ export class PhotoEditor {
     if (filterId === 'none' && qualifier.enabled) {
       qualifier = { ...qualifier, enabled: false };
     }
-    this.state = { ...this.state, filterId, qualifier };
+    this.state = {
+      ...this.state,
+      filterId,
+      qualifier,
+      importedLut: filterId === 'none' ? this.state.importedLut : null,
+    };
+    this.scheduleRecompute(recordHistory);
+  }
+
+  importCubeLut(lut: ImportedLutState, recordHistory = true): void {
+    if (recordHistory) this.pushHistory();
+    this.state = {
+      ...this.state,
+      importedLut: lut,
+      filterId: 'none',
+      filterIntensity: 100,
+      qualifier: { ...this.state.qualifier, enabled: false },
+    };
+    this.scheduleRecompute(recordHistory);
+  }
+
+  clearImportedLut(recordHistory = true): void {
+    if (!this.state.importedLut) return;
+    if (recordHistory) this.pushHistory();
+    this.state = { ...this.state, importedLut: null };
     this.scheduleRecompute(recordHistory);
   }
 
@@ -631,6 +662,42 @@ export class PhotoEditor {
   setCurves(curves: import('../core/types').Curves, recordHistory = false): void {
     if (recordHistory) this.pushHistory();
     this.state = { ...this.state, curves: { ...curves } };
+    this.scheduleRecompute(recordHistory);
+  }
+
+  /** Applies a shareable grade preset from URL params (no reference match or effects). */
+  applyGradeShare(
+    payload: import('../grade-share').GradeSharePayload,
+    recordHistory = false,
+  ): void {
+    if (recordHistory) this.pushHistory();
+
+    const next = { ...this.state };
+
+    if (payload.a) {
+      next.adjustments = { ...next.adjustments, ...payload.a };
+    }
+    if (payload.f) {
+      next.filterId = payload.f;
+    }
+    if (typeof payload.fi === 'number') {
+      next.filterIntensity = payload.fi;
+    }
+    if (payload.c) {
+      next.curves = { ...payload.c };
+    }
+    if (payload.ip) {
+      next.inputProfile = payload.ip;
+    }
+    if (typeof payload.ie === 'number') {
+      next.inputExposure = payload.ie;
+    }
+    if (payload.il === 0 || payload.il === 1) {
+      next.inputLinearMode = payload.il === 1;
+    }
+
+    this.state = next;
+    this.invalidateNormalizedCache();
     this.scheduleRecompute(recordHistory);
   }
 
@@ -744,12 +811,19 @@ export class PhotoEditor {
     this.scheduleRecompute(true);
   }
 
+  private updateScopes(buffer: ImageBuffer): void {
+    this.histogram = computeHistogram(buffer);
+    this.vectorscope = computeVectorscope(buffer);
+  }
+
   /** True when preview must use the full CPU pipeline (filters, qualifier mask, detail tools, etc.). */
   private needsFullFidelityPreview(): boolean {
     const hasPerChannelCurves = !!(this.state.curves?.r?.length || this.state.curves?.g?.length || this.state.curves?.b?.length);
-    const hasFiltersOrEffects = this.state.filterId !== 'none' || this.state.effectId !== 'none';
+    const hasFiltersOrEffects =
+      this.state.filterId !== 'none' || this.state.importedLut !== null || this.state.effectId !== 'none';
     const hasQualifier =
-      (this.state.qualifier?.enabled ?? false) && this.state.filterId !== 'none';
+      (this.state.qualifier?.enabled ?? false) &&
+      (this.state.filterId !== 'none' || this.state.importedLut !== null);
     const hasColorMatch = !!(this.state.colorMatch?.stats && this.state.colorMatch.strength > 0);
     const adj = this.state.adjustments;
     const hasToneAdjustments = adj.highlights !== 0 || adj.shadows !== 0 || adj.whites !== 0 || adj.blacks !== 0;
@@ -968,6 +1042,9 @@ export class PhotoEditor {
     this.state.qualifier = { ...DEFAULT_QUALIFIER, ...this.state.qualifier };
     this.state.advancedEffect = { ...DEFAULT_ADVANCED_EFFECT, ...this.state.advancedEffect };
     this.state.colorMatch = { ...DEFAULT_COLOR_MATCH, ...this.state.colorMatch };
+    if (!this.state.importedLut || !(this.state.importedLut.data instanceof Uint8Array)) {
+      this.state.importedLut = null;
+    }
     if (typeof this.state.inputExposure !== 'number') {
       this.state.inputExposure = DEFAULT_INPUT_EXPOSURE;
     }
@@ -1123,6 +1200,7 @@ export class PhotoEditor {
       this.previewBuffer = null;
       this.fullBuffer = null;
       this.histogram = null;
+      this.vectorscope = null;
       this.isRendering = false;
       this.isFullResReady = false;
       this.emit();
@@ -1148,6 +1226,7 @@ export class PhotoEditor {
     if (!this.source) {
       this.previewBuffer = null;
       this.histogram = null;
+      this.vectorscope = null;
       this.emit();
       return;
     }
@@ -1202,7 +1281,7 @@ export class PhotoEditor {
         // Reuse the graded preview for the histogram when the base is identical
         // (common on initial load) — avoids a redundant GPU pass.
         if (histoNormalized === normalized) {
-          this.histogram = computeHistogram(this.previewBuffer);
+          this.updateScopes(this.previewBuffer);
         } else {
           const histoGpu = gl.applyGradingWithCurve(
             histoNormalized.toImageData(),
@@ -1230,9 +1309,9 @@ export class PhotoEditor {
             const hbuf = ImageBuffer.fromImageData(
               new ImageData(new Uint8ClampedArray(histoGpu), histoNormalized.width, histoNormalized.height),
             );
-            this.histogram = computeHistogram(hbuf);
+            this.updateScopes(hbuf);
           } else {
-            this.histogram = computeHistogram(this.previewBuffer);
+            this.updateScopes(this.previewBuffer);
           }
         }
         this.emit();
@@ -1271,9 +1350,9 @@ export class PhotoEditor {
           histoPreview = null;
         }
       }
-      this.histogram = computeHistogram(histoPreview ?? renderPipeline(histoNormalized, this.state));
+      this.updateScopes(histoPreview ?? renderPipeline(histoNormalized, this.state));
     } else {
-      this.histogram = computeHistogram(preview);
+      this.updateScopes(preview);
     }
     this.emit();
   }
