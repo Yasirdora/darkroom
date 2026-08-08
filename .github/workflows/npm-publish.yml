@@ -1,0 +1,96 @@
+name: Publish npm package
+
+# Manual dispatch from a release tag. npm trusted publishing (OIDC) means no
+# token is stored anywhere; the registry verifies this workflow in this
+# repository produced the artifact.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish @coloristic.org/darkroom
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.x
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Verify trusted-publishing npm support
+        shell: bash
+        run: |
+          npm_version="$(npm --version)"
+          node -e '
+            const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(process.argv[1]);
+            if (!match) {
+              console.error(`Unable to parse npm version: ${process.argv[1]}`);
+              process.exit(1);
+            }
+            const [major, minor, patch] = match.slice(1, 4).map(Number);
+            const supported = major > 11
+              || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)));
+            if (!supported) {
+              console.error(`npm ${process.argv[1]} is unsupported; trusted publishing requires npm >= 11.5.1`);
+              process.exit(1);
+            }
+          ' "${npm_version}"
+
+      - name: Require the matching release tag
+        shell: bash
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          expected_tag="v${package_version}"
+          test "${GITHUB_REF_TYPE}" = "tag"
+          test "${GITHUB_REF_NAME}" = "${expected_tag}"
+
+      # A prerelease version goes to the `beta` dist-tag; a stable one takes
+      # `latest`. Deriving this from the version is the whole point: publishing
+      # a stable release under `beta` would strand `latest` on the last
+      # prerelease, and every plain `npm install` would keep resolving to it.
+      - name: Derive the dist-tag from the version
+        id: dist_tag
+        shell: bash
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          if [[ "${package_version}" == *-* ]]; then
+            echo "tag=beta" >> "${GITHUB_OUTPUT}"
+          else
+            echo "tag=latest" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit
+
+      - name: Run release checks
+        run: npm run check
+
+      - name: Verify publish artifact
+        run: npm run verify
+
+      # `--ignore-scripts` keeps `prepack` from running during publish; the
+      # `check` step above has already produced and verified `dist`.
+      - name: Publish package
+        run: |
+          npm publish \
+            --access public \
+            --tag "${{ steps.dist_tag.outputs.tag }}" \
+            --ignore-scripts

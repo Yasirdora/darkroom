@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor is the version `engines` promises; the rest are the lines a
+        # consumer might reasonably be on.
+        node:
+          - 22.12.0
+          - 22.x
+          - 24.x
+          - 26.x
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      # One gate, identical to the local one, so CI cannot pass what a
+      # developer's machine fails or vice versa.
+      - name: Run the release gate
+        run: npm run check
+
+  dependencies:
+    name: no runtime dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+
+      # The zero-dependency claim is in the README, so it is checked here
+      # rather than trusted.
+      - name: Assert the dependency tree is empty
+        run: |
+          node -e '
+            const manifest = require("./package.json");
+            const runtime = Object.keys(manifest.dependencies ?? {});
+            const peers = Object.keys(manifest.peerDependencies ?? {});
+            if (runtime.length || peers.length) {
+              console.error("unexpected dependencies:", [...runtime, ...peers].join(", "));
+              process.exit(1);
+            }
+            console.log("ok: no runtime or peer dependencies");
+          '
