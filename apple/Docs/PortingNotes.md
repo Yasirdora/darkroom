@@ -96,3 +96,32 @@ rather than broken.
 In Swift the profile *is* the composition — `transferFunction`, `gamut` and
 `renderTransform` are properties of one type — and the conformance suite asserts
 that every log profile pairs a log curve with a non-sRGB gamut and a shoulder.
+
+---
+
+## Port bugs the suite caught
+
+Recorded because each one shows what a class of check is worth.
+
+### Bézier handles were read per point, not per segment
+
+The TypeScript interpolator decides a segment is curved by looking only at the
+handles facing *into* it — `p0.handleOut*` and `p1.handleIn*`. The first Swift
+draft asked each point whether it carried *any* handle.
+
+The default S-curve is shaped exactly so that this matters: its first point has
+no handles, and its second carries an outgoing handle but no incoming one. The
+segment between them is therefore a straight line in TypeScript and became a
+Bézier in Swift — the toe of every S-curve bent where it should have run
+straight.
+
+Caught by the reference ramp, at deltas of 1e-5 to 3e-5. Small enough to be
+invisible in a screenshot; large enough to be the wrong curve. `ControlPoint`
+now exposes `hasAnyHandle` for the editor's drawing code only, and
+interpolation goes through `ToneCurve.isCurved(from:to:)`, whose name says which
+question it answers.
+
+### Canon C-Log3 grey point
+
+See *Resolved*, above. Found by an invariant check rather than a reference
+comparison, because both implementations agreed with each other.

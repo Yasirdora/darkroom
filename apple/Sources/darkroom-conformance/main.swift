@@ -10,7 +10,9 @@ let verbose = CommandLine.arguments.contains("--verbose")
     || CommandLine.arguments.contains("-v")
 
 do {
-    let report = ConformanceReport(results: try ColorScienceChecks.all())
+    let report = ConformanceReport(
+        results: try ColorScienceChecks.all() + GradingChecks.all()
+    )
     print(report.formatted(verbose: verbose))
     exit(report.passed ? 0 : 1)
 } catch {
