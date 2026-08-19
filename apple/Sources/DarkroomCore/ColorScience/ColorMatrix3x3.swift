@@ -6,7 +6,7 @@ import Foundation
 /// the dot products vectorise, and the storage is already in the layout the
 /// render layer uploads to the GPU — so the same coefficients drive the CPU
 /// lookup-table builder and the Metal chain without being re-derived.
-public struct ColorMatrix3x3: Sendable, Equatable, Hashable {
+public struct ColorMatrix3x3: Sendable, Equatable, Hashable, Codable {
 
     public let row0: SIMD3<Double>
     public let row1: SIMD3<Double>
@@ -63,5 +63,32 @@ public struct ColorMatrix3x3: Sendable, Equatable, Hashable {
         guard clampingNegatives else { return (out.x, out.y, out.z) }
         let floored = pointwiseMax(out, SIMD3<Double>(repeating: 0))
         return (floored.x, floored.y, floored.z)
+    }
+
+    // MARK: - Codable
+
+    /// Encoded as a flat row-major array of nine values rather than as three
+    /// nested vectors — it is how the coefficients are written in every
+    /// reference that publishes them, and it survives a round trip through
+    /// hand-edited JSON.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let values = try container.decode([Double].self)
+        guard values.count == 9 else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "A 3×3 matrix needs 9 coefficients, found \(values.count)."
+            )
+        }
+        self.init(
+            values[0], values[1], values[2],
+            values[3], values[4], values[5],
+            values[6], values[7], values[8]
+        )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(coefficients)
     }
 }

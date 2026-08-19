@@ -21,7 +21,7 @@ struct ConformanceTests {
     /// lazily, and a single evaluation keeps the reported comparison counts
     /// consistent across cases.
     static let outcome: Result<[CheckResult], any Error> = Result {
-        try ColorScienceChecks.all() + GradingChecks.all()
+        try ColorScienceChecks.all() + GradingChecks.all() + FilmChecks.all()
     }
 
     static var results: [CheckResult] {

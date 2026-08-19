@@ -11,7 +11,7 @@ let verbose = CommandLine.arguments.contains("--verbose")
 
 do {
     let report = ConformanceReport(
-        results: try ColorScienceChecks.all() + GradingChecks.all()
+        results: try ColorScienceChecks.all() + GradingChecks.all() + FilmChecks.all()
     )
     print(report.formatted(verbose: verbose))
     exit(report.passed ? 0 : 1)

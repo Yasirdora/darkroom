@@ -66,6 +66,56 @@ and it belongs in the phase that is already changing the numbers.
 
 ---
 
+## The film model
+
+### `Math.round` disagrees between the two languages
+
+ECMAScript rounds ties toward **positive infinity**; Swift's `rounded()` rounds
+them **away from zero**. They agree on every positive value and disagree on
+every negative half — `-2.5` is `-2` in JavaScript and `-3` in Swift.
+
+This is not theoretical for the film model. The dye matrix and the scanner stage
+both subtract, so intermediate values go negative routinely before anything
+clamps them.
+
+`JSMath.round` implements the ECMAScript rule exactly. It is written as
+`floor(x)` plus a fractional test rather than the more obvious `floor(x + 0.5)`,
+because adding first loses a bit for inputs just below one half:
+`0.49999999999999994 + 0.5` rounds up to exactly `1.0`, giving `1` where both
+languages return `0`.
+
+### Skin protection tests different pixels at different stages
+
+In `renderFilmPixel`, the timing stage asks `isSkinTone` about the **original**
+pixel, before the chain has moved it. The saturation stage — reached a few lines
+later — asks about the **processed** pixel, because `applySaturation` re-tests
+the values it was handed rather than receiving the earlier answer.
+
+A pixel can therefore be protected during timing and unprotected during
+saturation, or the reverse.
+
+**Disposition.** Reproduced exactly, and commented at both sites so it reads as
+a decision rather than an oversight.
+
+**Worth revisiting in Phase 3**, but not by picking one of the two. The whole
+heuristic is a hue-band test that cannot tell a cheek from a wooden floor or a
+brick wall. Vision's face and person segmentation gives a real mask, which makes
+the question of *which* pixel to test disappear rather than answering it.
+
+### `stylized` is declared, set, and never read
+
+`FilmStockProfile.stylized` is set `true` on 33 profiles and is never consulted
+by `renderFilmPixel` or anything downstream. It changes no pixel — the baked
+LUTs confirm it, since they match byte-for-byte with the flag carried across
+inertly.
+
+**Disposition.** Carried as `FilmStock.isStylized` so the data model round-trips,
+documented as inert. It is a reasonable thing to *start* using — the lighter
+presets could legitimately skip halation and dye cross-talk — but switching it
+on is a behaviour change, not a port.
+
+---
+
 ## Naming divergences
 
 The Swift API is organised around the domain rather than the TypeScript file
@@ -125,3 +175,21 @@ question it answers.
 
 See *Resolved*, above. Found by an invariant check rather than a reference
 comparison, because both implementations agreed with each other.
+
+---
+
+## Proving the suite can fail
+
+A green suite is worth nothing if it is incapable of going red, so two
+deliberate mutations were run against it.
+
+**Perturbing Portra 400's red gamma by 0.001** — a tenth of one percent — failed
+that stock's digest and no other, and the lattice diagnostics named the exact
+cube coordinates and the one-code-value differences in the red channel.
+
+**Perturbing Portra 400's grain amount from 18 to 19** left *all sixty* LUT
+digests passing and was caught only by the metadata check. That is the expected
+result and the reason the metadata check exists: grain is spatial, so it is
+deliberately not baked into the cube, and the digests are structurally blind to
+it. Without a separate check, every LUT would match while every image carried
+the wrong grain.

@@ -79,9 +79,16 @@ public enum ReferenceVectors {
             public let id: String
             public let label: String
             public let category: String
+            public let grain: Grain?
             public let lutSha256: String
             public let lutByteLength: Int
             public let samples: [Int]
+
+            public struct Grain: Decodable, Sendable {
+                public let amount: Double
+                public let warmth: Double
+                public let size: Double
+            }
         }
     }
 

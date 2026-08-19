@@ -68,10 +68,20 @@ defines a check of its own, so there is exactly one definition of what
 | Colour science | 11 transfer functions, 8 gamuts, 12 input profiles |
 | Grading | tone curves with Bézier handles, master + per channel |
 | LUT | 64³ cube, `.cube` read and write with DOMAIN rescaling |
-| Conformance | 63 checks, 18,018 comparisons |
+| Film | emulsion model + 60 stocks, every LUT byte-identical |
+| Conformance | 128 checks, 21,610 comparisons |
 
-Not yet ported: the film emulation model and its 60 stock profiles, `EditState`,
-and the adjustment stack. Rendering — Core Image and Metal — is Phase 2.
+Not yet ported: `EditState` and the adjustment stack. Rendering — Core Image and
+Metal — is Phase 2.
+
+### Generated code
+
+`Film/StockProfiles.generated.swift` is emitted by `npm run generate:stocks` and
+must not be hand-edited. The emulsion *model* is hand-written Swift, because an
+algorithm ported by hand is one somebody has read and understood. The stock
+*data* is generated, because sixty profiles of dense numeric constants is
+transcription work whose only failure mode is a digit nobody notices until a
+hash disagrees.
 
 ## Requirements
 
