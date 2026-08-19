@@ -25,9 +25,10 @@ Then, from `apple/`:
 ```sh
 swift run darkroom-conformance            # summary
 swift run darkroom-conformance --verbose  # every check listed
+swift test                                # same suite, one case per check
 ```
 
-Exit status is non-zero on any divergence, so it drops straight into CI.
+Exit status is non-zero on any divergence, so the CLI drops straight into CI.
 
 ## What is proven, and how
 
@@ -47,18 +48,18 @@ implementations share, which a reference comparison structurally cannot.
 
 Both have already earned their place. See `Docs/PortingNotes.md`.
 
-## Why this is not a test target
-
-`swift-testing` and XCTest both ship with Xcode, not with Command Line Tools,
-so neither is available in every environment this needs to run in. That
-constraint pushed toward a better answer than a workaround.
+## Why the checks are a library, not a test target
 
 What is being validated here is a port against a reference, and that job wants
 to run from CI, from a shell, and as a diagnostic that names the value which
-diverged and by how much — not one that reports a boolean. The suite is
-therefore a library returning a structured `ConformanceReport`, with a thin CLI
-over it. When Xcode is available, a `swift-testing` target will assert on the
-same report rather than reimplementing any of it.
+diverged and by how much — not one that reports a boolean.
+
+So the checks live in `DarkroomConformance` as a library returning a structured
+`ConformanceReport`. Two thin wrappers consume it: the `darkroom-conformance`
+CLI, and a `swift-testing` target that emits one test case per check so Xcode's
+navigator names a failure instead of showing a single red blob. Neither wrapper
+defines a check of its own, so there is exactly one definition of what
+"correct" means and no way for the two to drift.
 
 ## Status
 
@@ -70,8 +71,7 @@ same report rather than reimplementing any of it.
 | Conformance | 63 checks, 18,018 comparisons |
 
 Not yet ported: the film emulation model and its 60 stock profiles, `EditState`,
-and the adjustment stack. Rendering — Core Image and Metal — is Phase 2 and
-needs Xcode for the `metal` compiler.
+and the adjustment stack. Rendering — Core Image and Metal — is Phase 2.
 
 ## Requirements
 
@@ -79,3 +79,14 @@ Swift 6.0+. `DarkroomCore` targets macOS 14 / iOS 17 and imports nothing but the
 standard library, Foundation and CryptoKit — deliberately, so the app targets
 that consume it can set their own, higher minimums. The app itself will require
 macOS 26 for the current design language.
+
+Phase 2 additionally needs Xcode's Metal toolchain, which Apple ships as a
+separate download rather than bundling:
+
+```sh
+sudo xcodebuild -downloadComponent MetalToolchain
+xcodebuild -showComponent MetalToolchain    # expect: Status: installed
+```
+
+Core Image kernels compile through `metal -fcikernel` and link through
+`metallib -cikernel`; verified working on Metal 32023.883.

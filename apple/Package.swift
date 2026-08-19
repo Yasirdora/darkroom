@@ -44,5 +44,13 @@ let package = Package(
             dependencies: ["DarkroomConformance"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
+        // A thin swift-testing wrapper over the same suite, so `swift test` and
+        // Xcode's test navigator both work. It defines no checks of its own —
+        // one test case per CheckResult, asserting on the shared report.
+        .testTarget(
+            name: "DarkroomCoreTests",
+            dependencies: ["DarkroomConformance"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
     ]
 )
