@@ -1,0 +1,98 @@
+# Porting notes
+
+Findings from porting the TypeScript colour engine to `DarkroomCore`, and the
+decisions taken about each. Kept in the repository rather than in commit
+messages because these are the questions that get re-asked every few months.
+
+The governing rule for Phase 1 is **fidelity before improvement**. Where the
+TypeScript engine does something odd, the Swift port reproduces it and records
+it here. Changing behaviour and porting behaviour at the same time makes a
+divergence impossible to attribute, and the whole point of the golden vectors is
+that divergence is attributable.
+
+---
+
+## Resolved
+
+### Canon C-Log3 grey point — source comment was wrong, implementation was right
+
+`src/lib/processing/color-science.ts` documents C-Log3 as placing 18% scene grey
+at `0.327953`. It does not. Canon's C-Log3 OETF gives
+
+```
+y = 0.36726845 · log₁₀(14.98325 · x + 1) + 0.12240537
+y(0.18) = 0.3309579103868913
+```
+
+and the TypeScript decoder round-trips that value to `0.18` exactly. Decoding
+the documented `0.327953` instead yields `0.17540` — an error of about 0.037
+stops.
+
+**Disposition.** The implementation is correct and unchanged. `DarkroomCore`
+records the correct constant in `TransferFunction.sceneLinearGreyEncoding`,
+which is the value the conformance suite asserts against.
+
+This is exactly the class of defect the invariant checks exist to catch: a
+reference comparison alone could never have found it, because both
+implementations agreed with each other. Only checking against the *published
+specification* surfaced it.
+
+**Follow-up for the web app:** correct the comment in `color-science.ts`. No
+behavioural change, so no reference regeneration is needed.
+
+---
+
+## Carried over deliberately
+
+### Display P3 does not clamp negatives; every camera gamut does
+
+In `color-science.ts`, `p3LinearToSrgbLinear` returns its matrix product
+unclamped, while every other gamut conversion routes through `applyMatrix`,
+which applies `Math.max(0, …)` per channel. `bmdWideGamutToSrgbLinear` clamps
+inline. Nothing in the source suggests the difference is intentional.
+
+It is close to unobservable today: the pipeline is 8-bit and the very next stage
+quantises to `Uint8ClampedArray`, which floors negatives anyway.
+
+**Disposition.** Reproduced exactly, behind
+`ColorGamut.clampsNegativesToSRGB`, so Phase 1 stays byte-faithful.
+
+**Revisit in Phase 2.** In a 16-bit float pipeline this stops being academic:
+negative components survive, and out-of-gamut colour becomes something the
+render transform must handle deliberately rather than something the buffer type
+discards by accident. The right answer is likely to *stop* clamping everywhere
+and let a gamut-mapping step own the decision — but that is a behaviour change,
+and it belongs in the phase that is already changing the numbers.
+
+---
+
+## Naming divergences
+
+The Swift API is organised around the domain rather than the TypeScript file
+layout, so names differ on purpose. The mapping is stated once, in the tables at
+the top of `ColorScienceChecks.swift`, and the suite fails if a case appears on
+one side without a counterpart on the other — the tables cannot silently rot.
+
+| TypeScript | Swift |
+| --- | --- |
+| `srgbToLinear` | `TransferFunction.sRGB.sceneLinear(from:)` |
+| `linearToSrgb` | `DisplayEncoding.sRGB.encoded(from:)` |
+| `sLog3ToLinear` | `TransferFunction.sonySLog3` |
+| `bmdFilmGen5ToLinear` | `TransferFunction.blackmagicFilmGen5` |
+| `cLog3ToLinear` | `TransferFunction.canonLog3` |
+| `vLogToLinear` | `TransferFunction.panasonicVLog` |
+| `awg3LinearToSrgbLinear` | `ColorGamut.arriWideGamut3` |
+| `dwgToSrgbLinear` | `ColorGamut.daVinciWideGamut` |
+| `InputProfileId` | `InputProfile` |
+| `LOG_RENDER_PARAMS[id]` | `InputProfile.renderTransform` |
+
+The structural change worth noting: in TypeScript an input profile is an
+identifier that several `switch` statements interpret independently — one for
+the transfer function, one for the gamut, one for the render parameters. Keeping
+those three in agreement is a manual obligation, and pairing one manufacturer's
+log curve with another's primaries would produce an image that looks *graded*
+rather than broken.
+
+In Swift the profile *is* the composition — `transferFunction`, `gamut` and
+`renderTransform` are properties of one type — and the conformance suite asserts
+that every log profile pairs a log curve with a non-sRGB gamut and a shoulder.

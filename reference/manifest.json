@@ -1,0 +1,13 @@
+{
+  "description": "Golden reference vectors generated from the TypeScript engine. Consumed by DarkroomCore tests.",
+  "formatVersion": 1,
+  "generator": "tools/reference/dump.ts",
+  "files": {
+    "transfer.json": "c539409fb99e94209bffde09974d056b91604c0394ca0545ec96898c3bc24371",
+    "gamut.json": "de4c8015d73950f157ff2e47ef92828358985e2392f0880afd8ae19629e67e6c",
+    "input-profiles.json": "472e867b5e2b4de4e7003daf9ae6e9643bbd67efc8c3332427bf91349cf8f808",
+    "curves.json": "abb0558742f00466a146e8326bb096b106b159877e2028d017015fc585db9ee9",
+    "film-stocks.json": "d24f8510bc09da426d763b0d272db45c3790811a8123f473ea2560a6f9a6c8a9",
+    "cube-format.json": "5002104d1fd460b3914af231a73fc3d540957930f22af4f8a56eb615dc1700c7"
+  }
+}

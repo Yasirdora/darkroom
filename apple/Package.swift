@@ -1,0 +1,48 @@
+// swift-tools-version: 6.0
+
+import PackageDescription
+
+let package = Package(
+    name: "Darkroom",
+    // DarkroomCore is pure Swift with no platform dependencies, so it stays
+    // deliberately unconstrained. The app targets that consume it will raise
+    // their own minimums; a maths library should not force that choice.
+    platforms: [
+        .macOS(.v14),
+        .iOS(.v17),
+    ],
+    products: [
+        .library(name: "DarkroomCore", targets: ["DarkroomCore"]),
+        .library(name: "DarkroomConformance", targets: ["DarkroomConformance"]),
+        .executable(name: "darkroom-conformance", targets: ["darkroom-conformance"]),
+    ],
+    targets: [
+        .target(
+            name: "DarkroomCore",
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("ExistentialAny"),
+                .enableUpcomingFeature("InternalImportsByDefault"),
+            ]
+        ),
+        // The port's conformance suite: every check that proves DarkroomCore
+        // agrees with the TypeScript engine's golden vectors.
+        //
+        // Deliberately a library rather than a test target. What it validates —
+        // a port against a reference — wants to be runnable from CI, from a
+        // shell, and as a diagnostic that reports *which* value diverged rather
+        // than only that something did. A `swift-testing` target will wrap this
+        // once Xcode is installed; it will assert on the same report rather
+        // than reimplementing any of it.
+        .target(
+            name: "DarkroomConformance",
+            dependencies: ["DarkroomCore"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        .executableTarget(
+            name: "darkroom-conformance",
+            dependencies: ["DarkroomConformance"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+    ]
+)
