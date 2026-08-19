@@ -388,3 +388,38 @@ fraction through; a curve with a slope of 45 multiplies it by 45.
 Two codes out of a near-vertical curve is amplified input error, not a failure
 of the lookup table — a larger table does not move it. The conformance check
 gives that one case its own tolerance and says why.
+
+---
+
+## The same bug in two implementations, invisible to the check between them
+
+`adjustments.ts` defines its **own** `smoothstep`, and it differs from the film
+model's in one detail: it has no guard on the denominator.
+
+```js
+// adjustments.ts — no guard
+const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+
+// film-model.ts — guarded
+const t = clamp((x - e0) / Math.max(e1 - e0, 0.001), 0, 1);
+```
+
+The guard is absent because the shadow and black controls call it with the edges
+**reversed** — `smoothstep(0.5, 0, lum)` — so the denominator is legitimately
+`-0.5`. The film model only ever calls its version with increasing edges, where
+a zero-width range is a real degenerate case worth guarding.
+
+The Swift port used the guarded form for both. `max(-0.5, 1e-6)` is `1e-6`, so
+the shadow ramp inverted: shadows lifted where they should have held.
+
+**What matters is how it was found.** The bug was in the CPU implementation *and*
+in the Metal kernel, copied from one to the other. The render checks compare the
+kernel against the CPU implementation — and passed, because both were wrong in
+the same way. Only the vectors generated from the TypeScript engine caught it,
+and they caught it precisely: `shadows` and `blacks` failed while `highlights`
+and `whites` passed, which names the reversed-edge call sites directly.
+
+An implementation checked only against its own port is not checked. The layered
+chain — TypeScript defines it, `ColorGrade` is checked against TypeScript, the
+kernel is checked against `ColorGrade` — is what makes a shared fault visible,
+and it is worth the extra link.

@@ -176,7 +176,7 @@ public enum RenderChecks {
                     continue
                 }
 
-                let expected = ReferenceGrade.apply(
+                let expected = ColorGrade.apply(
                     adjustments,
                     r: Double(probe.r), g: Double(probe.g), b: Double(probe.b)
                 )

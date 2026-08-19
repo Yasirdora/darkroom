@@ -5,7 +5,7 @@ import DarkroomCore
 public enum GradingChecks {
 
     public static func all() throws -> [CheckResult] {
-        try curveChecks() + curveApplicationChecks() + cubeChecks()
+        try curveChecks() + curveApplicationChecks() + adjustmentChecks() + cubeChecks()
     }
 
     /// The full curve stage — per-channel curves plus the master's luminance
@@ -141,6 +141,70 @@ public enum GradingChecks {
             )
             return check.finish()
         }
+    }
+
+    /// `ColorGrade` against the TypeScript engine's `applyAdjustments`.
+    ///
+    /// This is the link that makes the whole render chain traceable: the
+    /// TypeScript engine defines the look, `ColorGrade` is checked against it
+    /// here, and the Metal kernel is checked against `ColorGrade` in
+    /// `RenderChecks`. Break any link and the chain reports which one.
+    static func adjustmentChecks() throws -> [CheckResult] {
+        let suite = "Adjustments"
+        let vectors = try ReferenceVectors.adjustments()
+        var results: [CheckResult] = []
+
+        for reference in vectors.cases {
+            var check = Checker(suite: suite, name: "\(reference.name) matches the reference")
+
+            var adjustments = Adjustments()
+            var unknown: [String] = []
+            for (name, value) in reference.values {
+                guard let key = Adjustments.Key(rawValue: name) else {
+                    unknown.append(name)
+                    continue
+                }
+                adjustments[key] = value
+            }
+            for name in unknown.sorted() {
+                check.fail("reference names an adjustment Swift does not have: '\(name)'")
+            }
+
+            for (index, pixel) in vectors.pixels.enumerated() where index < reference.results.count {
+                let out = ColorGrade.apply(adjustments, r: pixel[0], g: pixel[1], b: pixel[2])
+                let want = reference.results[index]
+                // One code: the TypeScript engine rounds to bytes between
+                // stages and this does not, which is the intended difference.
+                check.expectWithin(out.r, want[0], codes: 1, "\(reference.name) \(pixel) red")
+                check.expectWithin(out.g, want[1], codes: 1, "\(reference.name) \(pixel) green")
+                check.expectWithin(out.b, want[2], codes: 1, "\(reference.name) \(pixel) blue")
+            }
+
+            results.append(check.finish())
+        }
+
+        var coverage = Checker(suite: suite, name: "every colour control has a reference case")
+        let covered = Set(vectors.cases.flatMap { $0.values.keys })
+        let spatial: Set<String> = ["clarity", "sharpen", "vignette", "grain"]
+        for key in Adjustments.Key.allCases where !spatial.contains(key.rawValue) {
+            coverage.expect(
+                covered.contains(key.rawValue),
+                "no reference case exercises '\(key.rawValue)'"
+            )
+        }
+        results.append(coverage.finish())
+
+        var neutral = Checker(suite: suite, name: "a neutral grade changes nothing")
+        for pixel in vectors.pixels {
+            let out = ColorGrade.apply(Adjustments(), r: pixel[0], g: pixel[1], b: pixel[2])
+            neutral.expect(
+                out.r == pixel[0] && out.g == pixel[1] && out.b == pixel[2],
+                "neutral grade changed \(pixel) to \(out)"
+            )
+        }
+        results.append(neutral.finish())
+
+        return results
     }
 
     // MARK: - Tone curves

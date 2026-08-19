@@ -77,13 +77,26 @@ defines a check of its own, so there is exactly one definition of what
 | LUT | 64³ cube, `.cube` read and write with DOMAIN rescaling |
 | Film | emulsion model + 60 stocks, every LUT byte-identical |
 | Model | `EditState`, `Adjustments`, `Transform`, grade-share codec |
-| Render | Metal build plugin, colour-managed context, GPU look path |
-| Conformance | 141 checks, 21,905 comparisons + a cross-language check |
+| Render | full pipeline: input profile, geometry, grade, curves, look, spatial |
+| I/O | RAW via `CIRAWFilter`, plus PNG / JPEG / HEIF / 16-bit TIFF export |
+| Conformance | 194 checks, 23,208 comparisons + a cross-language check |
 
-Phase 1 is complete. Phase 2 is under way: the Metal toolchain builds, and film
-looks render on the GPU. Still to come in Phase 2 — the grading kernel
-(adjustments), curves, the spatial stages (halation, grain, clarity, vignette),
-and the scopes as Metal compute.
+Phases 1 and 2 render an `EditState` end to end. Still to come — the scopes as
+Metal compute, the qualifier and power windows, and then the app itself.
+
+## Grading from the command line
+
+```sh
+swift run darkroom photo.jpg --look portra400
+swift run darkroom raw.arw --profile s-log3 --look eterna --exposure 10 -o graded.tif
+swift run darkroom photo.jpg --export-cube grade.cube
+swift run darkroom --list-looks
+```
+
+This exists ahead of the app deliberately. A conformance suite proves the
+arithmetic; only a photograph shows whether the result is a picture — and it is
+far cheaper to find a wrong render now than after there is a user interface to
+blame for it.
 
 ### Shaders
 

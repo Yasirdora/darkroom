@@ -122,8 +122,15 @@ static inline float skin_weight(float3 c) {
 
 // MARK: - Tone
 
+// Hermite smoothstep, deliberately without a guard on the denominator.
+//
+// The shadow and black controls call this with reversed edges —
+// smoothstep(0.5, 0, lum) — so the denominator is legitimately negative.
+// Clamping it to a small positive number inverts the ramp, lifting shadows
+// where they should hold. The clamp on `t` handles the degenerate equal-edge
+// case on its own.
 static inline float smootherstep(float e0, float e1, float x) {
-    float t = clamp((x - e0) / max(e1 - e0, 1e-6f), 0.0f, 1.0f);
+    float t = clamp((x - e0) / (e1 - e0), 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
 }
 

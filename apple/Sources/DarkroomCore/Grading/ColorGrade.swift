@@ -1,24 +1,26 @@
 import Foundation
-import DarkroomCore
 
-/// An independent CPU implementation of the colour grade, used to check the
-/// Metal kernel.
+/// The colour grade, on the CPU.
 ///
-/// Deliberately *not* shared code. If the kernel and its expectation came from
-/// one source, agreement would prove only that the source was consistent with
-/// itself. Written separately from the same specification, agreement means both
-/// are right — the standard argument for an independent implementation, which
-/// matters most on exactly this kind of arithmetic.
+/// The Metal kernel in `DarkroomRender` is the production path — this exists
+/// for the two jobs a GPU kernel cannot do. Baking a grade into a `.cube` file
+/// needs the transform evaluated across a lattice, not applied to an image. And
+/// the conformance suite needs something to hold the kernel against; a kernel
+/// checked only against itself is not checked.
 ///
 /// It mirrors the TypeScript engine's formulas in one respect and departs in
 /// another. Same constants, same stage ordering; but no rounding to bytes
-/// between stages, because the Metal pipeline carries 16-bit float throughout
-/// and quantising here would build the CPU engine's precision loss into the
-/// thing meant to detect it.
-enum ReferenceGrade {
+/// between stages, because the pipeline carries 16-bit float throughout and
+/// quantising here would build the web engine's precision loss into the native
+/// one.
+public enum ColorGrade {
 
     /// Applies the colour stage to one pixel, in 8-bit sRGB code values.
-    static func apply(
+    ///
+    /// Spatial adjustments — clarity, sharpening, vignette, grain — are absent
+    /// by construction: each depends on a pixel's neighbours, and this function
+    /// sees one pixel.
+    public static func apply(
         _ adjustments: Adjustments,
         r: Double, g: Double, b: Double
     ) -> (r: Double, g: Double, b: Double) {
@@ -122,8 +124,23 @@ enum ReferenceGrade {
         )
     }
 
+    /// Hermite smoothstep, **without** a guard on the denominator.
+    ///
+    /// The guard matters, by its absence. The shadow and black controls call
+    /// this with the edges reversed — `smoothstep(0.5, 0, lum)` — so the
+    /// denominator is legitimately negative, and clamping it to a small
+    /// positive number inverts the ramp: shadows would lift where they should
+    /// hold and hold where they should lift.
+    ///
+    /// The film model's ``JSMath/smoothstep(_:_:_:)`` *does* guard, because its
+    /// edges are always increasing and a zero-width range there is a genuine
+    /// degenerate case. Same function, different call sites, different correct
+    /// answer — which is why they are not shared.
+    ///
+    /// Equal edges divide by zero and produce an infinity, which the clamp
+    /// resolves to 0 or 1. That is what the reference does too.
     private static func smoothstep(_ e0: Double, _ e1: Double, _ x: Double) -> Double {
-        let t = ((x - e0) / max(e1 - e0, 1e-6)).clamped(to: 0...1)
+        let t = ((x - e0) / (e1 - e0)).clamped(to: 0...1)
         return t * t * (3 - 2 * t)
     }
 
@@ -148,8 +165,3 @@ enum ReferenceGrade {
     }
 }
 
-private extension Double {
-    func clamped(to range: ClosedRange<Double>) -> Double {
-        Swift.min(range.upperBound, Swift.max(range.lowerBound, self))
-    }
-}

@@ -15,6 +15,7 @@ let package = Package(
         .library(name: "DarkroomCore", targets: ["DarkroomCore"]),
         .library(name: "DarkroomRender", targets: ["DarkroomRender"]),
         .library(name: "DarkroomConformance", targets: ["DarkroomConformance"]),
+        .executable(name: "darkroom", targets: ["darkroom"]),
         .executable(name: "darkroom-conformance", targets: ["darkroom-conformance"]),
     ],
     targets: [
@@ -51,6 +52,14 @@ let package = Package(
         // than reimplementing any of it.
         .target(
             name: "DarkroomConformance",
+            dependencies: ["DarkroomCore", "DarkroomRender"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        // Grades a photograph from the command line. Exists ahead of the app
+        // so the render chain meets real images long before there is a user
+        // interface to blame when something looks wrong.
+        .executableTarget(
+            name: "darkroom",
             dependencies: ["DarkroomCore", "DarkroomRender"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),

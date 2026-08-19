@@ -46,6 +46,10 @@ import {
   getRecommendedInputExposure,
 } from '../../src/lib/processing/input-profile';
 import { applyCurves, interpolateCurve, makeDefaultSCurve } from '../../src/lib/processing/curves';
+import { applyAdjustments } from '../../src/lib/processing/adjustments';
+import { ImageBuffer } from '../../src/lib/core/image-buffer';
+import { DEFAULT_ADJUSTMENTS } from '../../src/lib/editor/constants';
+import type { Adjustments } from '../../src/lib/core/types';
 import { FILTER_PRESETS } from '../../src/lib/processing/filters/presets';
 import { formatCubeFile } from '../../src/lib/export/cube-file';
 import {
@@ -338,6 +342,66 @@ const dumpCubeFormat = () => {
   };
 };
 
+// ── Adjustments ─────────────────────────────────────────────────────────────
+
+/** One control at a time, so a mismatch names the control rather than the
+ *  grade. Spatial adjustments are excluded deliberately: they depend on a
+ *  pixel's neighbours, so they cannot be checked per-pixel and the render
+ *  layer implements them with different filters anyway. */
+const ADJUSTMENT_CASES: Array<{ name: string; values: Partial<Adjustments> }> = [
+  { name: 'exposure+25', values: { exposure: 25 } },
+  { name: 'exposure-25', values: { exposure: -25 } },
+  { name: 'brightness+20', values: { brightness: 20 } },
+  { name: 'contrast+40', values: { contrast: 40 } },
+  { name: 'contrast-40', values: { contrast: -40 } },
+  { name: 'highlights-60', values: { highlights: -60 } },
+  { name: 'shadows+60', values: { shadows: 60 } },
+  { name: 'whites+40', values: { whites: 40 } },
+  { name: 'blacks-40', values: { blacks: -40 } },
+  { name: 'saturation+50', values: { saturation: 50 } },
+  { name: 'saturation-100', values: { saturation: -100 } },
+  { name: 'vibrance+40', values: { vibrance: 40 } },
+  { name: 'vibrance-40', values: { vibrance: -40 } },
+  { name: 'hue+90', values: { hue: 90 } },
+  { name: 'temperature+50', values: { temperature: 50 } },
+  { name: 'temperature-50', values: { temperature: -50 } },
+  { name: 'tint+40', values: { tint: 40 } },
+  { name: 'sepia100', values: { sepia: 100 } },
+  {
+    name: 'combined',
+    values: { exposure: 15, contrast: 25, saturation: 20, temperature: -30, highlights: -40 },
+  },
+];
+
+const dumpAdjustments = () => ({
+  description:
+    'applyAdjustments() on fixed pixels, colour-only controls. Spatial stages are excluded — they depend on neighbouring pixels.',
+  pixels: CURVE_PIXELS,
+  cases: ADJUSTMENT_CASES.map(({ name, values }) => {
+    const data = new Uint8ClampedArray(CURVE_PIXELS.length * 4);
+    CURVE_PIXELS.forEach(([r, g, b], index) => {
+      data[index * 4] = r;
+      data[index * 4 + 1] = g;
+      data[index * 4 + 2] = b;
+      data[index * 4 + 3] = 255;
+    });
+
+    const source = new ImageBuffer(CURVE_PIXELS.length, 1, data);
+    const output = applyAdjustments(source, { ...DEFAULT_ADJUSTMENTS, ...values });
+
+    const results: number[][] = [];
+    for (let index = 0; index < CURVE_PIXELS.length; index += 1) {
+      results.push([
+        output.data[index * 4],
+        output.data[index * 4 + 1],
+        output.data[index * 4 + 2],
+      ]);
+    }
+
+    return { name, values, results };
+  }),
+});
+
 // ── Grade share payloads ────────────────────────────────────────────────────
 
 /** Grades chosen to exercise every field of the share payload, including the
@@ -427,6 +491,7 @@ const main = () => {
   files['curves.json'] = write('curves.json', dumpCurves());
   files['film-stocks.json'] = write('film-stocks.json', dumpFilmStocks());
   files['curve-application.json'] = write('curve-application.json', dumpCurveApplication());
+  files['adjustments.json'] = write('adjustments.json', dumpAdjustments());
   files['cube-format.json'] = write('cube-format.json', dumpCubeFormat());
   files['grade-share.json'] = write('grade-share.json', dumpGradeShare());
 

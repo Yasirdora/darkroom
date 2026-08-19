@@ -80,6 +80,17 @@ public enum ReferenceVectors {
         }
     }
 
+    public struct AdjustmentVectors: Decodable, Sendable {
+        public let pixels: [[Double]]
+        public let cases: [Case]
+
+        public struct Case: Decodable, Sendable {
+            public let name: String
+            public let values: [String: Double]
+            public let results: [[Double]]
+        }
+    }
+
     public struct FilmStocks: Decodable, Sendable {
         public let lutSize: Int
         public let latticeIndices: [Int]
@@ -153,6 +164,7 @@ public enum ReferenceVectors {
     public static func filmStocks() throws -> FilmStocks { try load(FilmStocks.self, from: "film-stocks.json") }
     public static func gradeShares() throws -> GradeShares { try load(GradeShares.self, from: "grade-share.json") }
     public static func curveApplication() throws -> CurveApplication { try load(CurveApplication.self, from: "curve-application.json") }
+    public static func adjustments() throws -> AdjustmentVectors { try load(AdjustmentVectors.self, from: "adjustments.json") }
 
     public enum ReferenceError: Error, CustomStringConvertible {
         case missing(file: String, expectedAt: String)
