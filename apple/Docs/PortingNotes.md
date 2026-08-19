@@ -298,3 +298,37 @@ the agreement was real; the check merely had not been proving it.
 Worth stating plainly: the mutation existed to test the *code*, and caught a
 hole in the *test*. A suite that has never been made to fail has not been
 measured.
+
+### Render tolerances were set from measurement, not from caution
+
+The first render checks used 2- and 3-code tolerances chosen by intuition —
+"float rounding plus an sRGB round trip, that's probably a couple of codes".
+
+Forcing the bound to 0.01 and reading the actual deltas showed the largest
+disagreement anywhere in the render suite is **0.53 code values**, with the
+distribution ceilinging cleanly at 0.5. That is the signature of the final
+quantisation to bytes, not of any algorithmic difference: the GPU path and the
+independent CPU reference agree *exactly*, and differ only in where they round.
+
+Both tolerances are now 1.0 — roughly 2× the observed noise, and catching any
+real error of a single code or more. A guessed tolerance is a hole in a suite
+that looks like rigour; measuring costs one run.
+
+### Mutation testing needs mutations that could actually be detected
+
+Two early mutations of the grading kernel both "passed", which briefly looked
+like the checks were vacuous. Neither result was real:
+
+- Removing the sRGB bracketing produced a **build failure**, so the run used a
+  stale binary. A mutation that does not compile tests nothing.
+- Scaling the output by 1.004 shifts white by about one code — inside the
+  then-current 3-code tolerance. A legitimate pass, and an argument for the
+  tighter bound above rather than evidence of a hole.
+
+Scaling the output by 0.5 produced 196 failures across every non-neutral case.
+`grade: neutral` correctly stayed green, because a neutral grade short-circuits
+before the kernel is ever invoked.
+
+The lesson worth keeping: when a mutation passes, check that it compiled and
+that its magnitude exceeds the tolerance, before concluding anything about the
+suite.

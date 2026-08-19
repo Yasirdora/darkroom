@@ -20,12 +20,16 @@ public enum RenderChecks {
 
     /// Rendering tolerance in 8-bit code values.
     ///
-    /// Two codes out of 255 is under one percent, and comfortably below a
-    /// just-noticeable difference on a calibrated display. It is loose enough
-    /// to absorb float rounding and the sRGB round trip a colour cube performs,
-    /// and tight enough that a mismatched colour space — which shifts midtones
-    /// by ten codes or more — cannot pass.
-    static let toleranceCodes = 2.0
+    /// Set from measurement, not from caution. With the bound forced to 0.01
+    /// the largest disagreement anywhere in this suite is **0.53 codes**, and
+    /// the distribution ceilings cleanly at 0.5 — the signature of the final
+    /// quantisation to bytes rather than of any algorithmic difference. The GPU
+    /// and CPU paths agree exactly; they differ only in where they round.
+    ///
+    /// One code therefore leaves roughly 2x headroom over observed noise while
+    /// catching any real error of a single code or more. Widening this without
+    /// re-measuring would silently weaken every check below it.
+    static let toleranceCodes = 1.0
 
     public static func all() throws -> [CheckResult] {
         var results: [CheckResult] = [kernelLibraryCheck()]
@@ -173,11 +177,12 @@ public enum RenderChecks {
 
     /// Tolerance for the grading kernel, in 8-bit code values.
     ///
-    /// Looser than the cube tolerance because more accumulates here: an sRGB
-    /// encode and decode, an HSL round trip, and half-float arithmetic through
-    /// a chain of stages. Three codes is still just over one percent, and a
-    /// wrong formula moves things by far more.
-    static let gradeToleranceCodes = 3.0
+    /// The same measured 0.53-code ceiling applies here, despite this path
+    /// carrying an sRGB round trip, an HSL round trip and half-float arithmetic
+    /// across a dozen stages — none of which accumulates enough to register
+    /// against 8-bit output. Held at one code for the same reason as
+    /// ``toleranceCodes``.
+    static let gradeToleranceCodes = 1.0
 
     // MARK: - Looks
 
