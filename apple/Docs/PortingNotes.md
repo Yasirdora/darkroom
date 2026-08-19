@@ -277,3 +277,24 @@ samples, and converts back. The render checks compare against
 `ColorCube.sample()` at a two-code tolerance, which is loose enough for float
 rounding and tight enough that a wrong colour space — a ten-code-plus midtone
 shift — cannot pass.
+
+### The mutation test found a flaw in the checks, not just in the code
+
+Mutating `LookFilter.cubeColorSpace` from sRGB to linear failed all six stocks —
+black rendering 69 where the cube says 15. Confirmation that the colour-space
+decision is load-bearing and not a stylistic preference.
+
+But the failure report read `allowed 30.0` for a tolerance specified as `2`.
+`Checker.expectClose` scales its bound *relatively* (`tolerance × max(1,
+|expected|)`), which is right for scene-linear values spanning orders of
+magnitude and wrong for 8-bit code values. At an expected value of 200 it would
+have allowed ±400 — the bright end of every render check was asserting nothing
+at all.
+
+`Checker.expectWithin(_:_:codes:)` now provides a fixed absolute bound, and
+every render comparison uses it. All checks still pass at a strict ±2 codes, so
+the agreement was real; the check merely had not been proving it.
+
+Worth stating plainly: the mutation existed to test the *code*, and caught a
+hole in the *test*. A suite that has never been made to fail has not been
+measured.

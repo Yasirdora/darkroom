@@ -84,9 +84,9 @@ public enum RenderChecks {
                 check.fail("render produced no pixels for level \(level)")
                 continue
             }
-            check.expectClose(Double(bytes[0]), Double(level), tolerance: toleranceCodes, "neutral \(level) red")
-            check.expectClose(Double(bytes[1]), Double(level), tolerance: toleranceCodes, "neutral \(level) green")
-            check.expectClose(Double(bytes[2]), Double(level), tolerance: toleranceCodes, "neutral \(level) blue")
+            check.expectWithin(Double(bytes[0]), Double(level), codes: toleranceCodes, "neutral \(level) red")
+            check.expectWithin(Double(bytes[1]), Double(level), codes: toleranceCodes, "neutral \(level) green")
+            check.expectWithin(Double(bytes[2]), Double(level), codes: toleranceCodes, "neutral \(level) blue")
         }
 
         return check.finish()
@@ -140,9 +140,9 @@ public enum RenderChecks {
                     r: Double(probe.r), g: Double(probe.g), b: Double(probe.b)
                 )
 
-                check.expectClose(Double(bytes[0]), expected.r, tolerance: toleranceCodes, "\(id) \(probe) red")
-                check.expectClose(Double(bytes[1]), expected.g, tolerance: toleranceCodes, "\(id) \(probe) green")
-                check.expectClose(Double(bytes[2]), expected.b, tolerance: toleranceCodes, "\(id) \(probe) blue")
+                check.expectWithin(Double(bytes[0]), expected.r, codes: toleranceCodes, "\(id) \(probe) red")
+                check.expectWithin(Double(bytes[1]), expected.g, codes: toleranceCodes, "\(id) \(probe) green")
+                check.expectWithin(Double(bytes[2]), expected.b, codes: toleranceCodes, "\(id) \(probe) blue")
             }
 
             return check.finish()
@@ -174,20 +174,20 @@ public enum RenderChecks {
         }
 
         // Zero must be the untouched source, or the look leaks in at rest.
-        check.expectClose(zero.r, Double(probe.r), tolerance: toleranceCodes, "intensity 0 red")
-        check.expectClose(zero.g, Double(probe.g), tolerance: toleranceCodes, "intensity 0 green")
-        check.expectClose(zero.b, Double(probe.b), tolerance: toleranceCodes, "intensity 0 blue")
+        check.expectWithin(zero.r, Double(probe.r), codes: toleranceCodes, "intensity 0 red")
+        check.expectWithin(zero.g, Double(probe.g), codes: toleranceCodes, "intensity 0 green")
+        check.expectWithin(zero.b, Double(probe.b), codes: toleranceCodes, "intensity 0 blue")
 
         let expected = cube.sample(r: Double(probe.r), g: Double(probe.g), b: Double(probe.b))
-        check.expectClose(full.r, expected.r, tolerance: toleranceCodes, "intensity 100 red")
-        check.expectClose(full.g, expected.g, tolerance: toleranceCodes, "intensity 100 green")
-        check.expectClose(full.b, expected.b, tolerance: toleranceCodes, "intensity 100 blue")
+        check.expectWithin(full.r, expected.r, codes: toleranceCodes, "intensity 100 red")
+        check.expectWithin(full.g, expected.g, codes: toleranceCodes, "intensity 100 green")
+        check.expectWithin(full.b, expected.b, codes: toleranceCodes, "intensity 100 blue")
 
         // Halfway must actually land halfway, not snap to one end — which is
         // what a mis-set blend parameter looks like.
         if let half = render(50) {
             let midpoint = (Double(probe.r) + expected.r) / 2
-            check.expectClose(half.r, midpoint, tolerance: 4, "intensity 50 red sits between source and graded")
+            check.expectWithin(half.r, midpoint, codes: 4, "intensity 50 red sits between source and graded")
         } else {
             check.fail("intensity 50 produced no pixels")
         }

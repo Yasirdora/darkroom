@@ -77,9 +77,29 @@ defines a check of its own, so there is exactly one definition of what
 | LUT | 64³ cube, `.cube` read and write with DOMAIN rescaling |
 | Film | emulsion model + 60 stocks, every LUT byte-identical |
 | Model | `EditState`, `Adjustments`, `Transform`, grade-share codec |
-| Conformance | 132 checks, 21,718 comparisons + a cross-language check |
+| Render | Metal build plugin, colour-managed context, GPU look path |
+| Conformance | 141 checks, 21,905 comparisons + a cross-language check |
 
-Phase 1 is complete. Rendering — Core Image and Metal — is Phase 2.
+Phase 1 is complete. Phase 2 is under way: the Metal toolchain builds, and film
+looks render on the GPU. Still to come in Phase 2 — the grading kernel
+(adjustments), curves, the spatial stages (halation, grain, clarity, vignette),
+and the scopes as Metal compute.
+
+### Shaders
+
+`Sources/DarkroomRender/Kernels/*.metal` are compiled by
+`Plugins/MetalKernelPlugin`, not by SwiftPM — its built-in Metal support cannot
+find the separately mounted Metal toolchain. Files named `*.ci.metal` are Core
+Image kernels and get `-fcikernel`/`-cikernel`; everything else is ordinary
+Metal. The directory is `exclude:`d from the target so SwiftPM does not try to
+compile it and fail the build before the plugin runs.
+
+If a build reports the Metal toolchain as missing, check it really is:
+
+```sh
+xcodebuild -showComponent MetalToolchain      # expect: Status: installed
+sudo xcodebuild -downloadComponent MetalToolchain
+```
 
 ### Generated code
 

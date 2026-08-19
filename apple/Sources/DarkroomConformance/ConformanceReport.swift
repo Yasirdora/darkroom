@@ -133,6 +133,38 @@ public struct Checker: ~Copyable {
             """)
     }
 
+    /// Records a comparison against a fixed absolute bound.
+    ///
+    /// Distinct from ``expectClose(_:_:tolerance:_:)``, whose bound scales with
+    /// magnitude. Relative scaling suits scene-linear values, which span orders
+    /// of magnitude; it is actively wrong for 8-bit code values, where "within
+    /// two codes" must mean two codes at 200 exactly as it does at 5. Using the
+    /// relative form there would allow ±400 at the bright end and check nothing.
+    public mutating func expectWithin(
+        _ actual: Double,
+        _ expected: Double,
+        codes allowed: Double,
+        _ context: @autoclosure () -> String
+    ) {
+        comparisons += 1
+        if actual == expected { return }
+
+        guard actual.isFinite, expected.isFinite else {
+            record("\(context()): expected \(expected), got \(actual) — non-finite")
+            return
+        }
+
+        let delta = Swift.abs(actual - expected)
+        guard delta > allowed else { return }
+
+        record("""
+            \(context())
+            expected \(expected)
+            actual   \(actual)
+            delta    \(delta)  (allowed \(allowed))
+            """)
+    }
+
     /// Records a boolean expectation.
     public mutating func expect(_ condition: Bool, _ message: @autoclosure () -> String) {
         comparisons += 1
