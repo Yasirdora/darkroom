@@ -1,11 +1,34 @@
-// Teaches Node's ESM loader the two resolution rules Vite applies to this
-// project: extensionless relative imports, and the `$lib` alias. Lets the
-// reference dumper import the real engine modules with no bundler step, so
-// golden values come from the exact same source the app ships.
+// Makes the browser-targeted engine loadable under Node, so the reference
+// dumper can call the real implementations rather than a reimplementation.
+//
+// Two things are needed. Node's ESM loader does not apply Vite's resolution
+// rules — extensionless relative imports and the `$lib` alias — and it has no
+// `ImageData`, which the pixel-level modules take and return.
 import { registerHooks } from 'node:module';
 import { statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve as resolvePath, dirname } from 'node:path';
+
+// Minimal stand-in for the browser's ImageData. The engine only ever reads
+// `data`, `width` and `height` off it, so a fuller implementation would be
+// unused surface — and any behaviour it invented could diverge from the real
+// thing without anything noticing.
+if (typeof globalThis.ImageData === 'undefined') {
+  globalThis.ImageData = class ImageData {
+    constructor(data, width, height) {
+      if (typeof data === 'number') {
+        // The (width, height) overload the spec also allows.
+        this.width = data;
+        this.height = width;
+        this.data = new Uint8ClampedArray(this.width * this.height * 4);
+        return;
+      }
+      this.data = data;
+      this.width = width;
+      this.height = height ?? data.length / 4 / width;
+    }
+  };
+}
 
 const SRC = resolvePath(import.meta.dirname, '../../src');
 

@@ -332,3 +332,59 @@ before the kernel is ever invoked.
 The lesson worth keeping: when a mutation passes, check that it compiled and
 that its magnitude exceeds the tolerance, before concluding anything about the
 suite.
+
+---
+
+## Curves are not baked into a colour cube
+
+The obvious design was to compose curves with the film look into a single
+`ColorCube` — both are pure colour transforms, so one texture sample would apply
+both. Measurement ruled it out.
+
+A cube stores 64 lattice points per axis and interpolates between them, and the
+error grows with the curve's slope:
+
+| curve | worst error |
+| --- | --- |
+| gentle S | under 1 code |
+| moderate contrast | ~2 codes |
+| steep contrast | **3.7 codes** |
+| near-vertical | **17.3 codes** |
+
+A steep contrast curve is an entirely ordinary thing for a colourist to pull,
+and 3.7 codes is visible contouring on any smooth gradient. So curves get a 1D
+lookup texture instead — 1024 entries, all four curves packed into one RGBA row,
+with the master in alpha. A single axis resolves any curve a person can draw.
+
+The cost is one extra render pass, because a kernel that samples a texture
+cannot be concatenated with the colour kernels around it. That is the right
+trade: a pass is cheap, banding is not.
+
+`ChannelCurves.baked()` still exists, for `.cube` **export** — where the format
+itself is a 64³ lattice and the quantisation is inherent rather than chosen.
+
+The measurement survives as a conformance check with per-case limits. It guards
+nothing in the render path; it exists so that if the relationship between slope
+and error ever changes, the reasoning above gets revisited rather than silently
+becoming wrong.
+
+### A `sample_t` first argument crashes a general kernel
+
+`CIColorKernel` takes its input as `coreimage::sample_t`. `CIKernel` — the
+general kind, the only kind that can sample a lookup texture — takes *every*
+image input as `coreimage::sampler`, including the one it reads point for point.
+
+Writing `sample_t` for the first parameter of a general kernel compiles without
+complaint and then segfaults at render time, because Core Image binds arguments
+by kind and the shapes no longer line up. The symptom is an exit code, not a
+diagnostic.
+
+### Near-vertical curves amplify input error, and that is not a bug
+
+The render path reconstructs each input value through an sRGB encode before the
+curve sees it, exact only to a fraction of a code. A gentle curve passes that
+fraction through; a curve with a slope of 45 multiplies it by 45.
+
+Two codes out of a near-vertical curve is amplified input error, not a failure
+of the lookup table — a larger table does not move it. The conformance check
+gives that one case its own tolerance and says why.

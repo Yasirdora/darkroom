@@ -207,4 +207,57 @@ public struct ChannelCurves: Sendable, Equatable, Hashable, Codable {
     }
 
     public static let none = ChannelCurves()
+
+    // MARK: - Application
+
+    /// Applies the curves to one 8-bit pixel.
+    ///
+    /// Per-channel curves run first and independently. The master curve then
+    /// runs on *luminance* and is re-applied to the channels as a shared
+    /// offset — not by curving each channel through it.
+    ///
+    /// That distinction is the whole reason a master curve exists. Curving each
+    /// channel separately would desaturate as it lifted, because equal
+    /// multiplicative moves on unequal channels compress the ratios between
+    /// them. Offsetting by a luminance delta moves tone while leaving those
+    /// ratios, and therefore the hue, close to intact.
+    ///
+    /// The offset is weighted slightly per channel — 0.9 red, 1.05 green, 0.85
+    /// blue — which is a deliberate warm bias in the shadows and a cool one in
+    /// the highlights, matching how a photographic print responds to exposure
+    /// rather than how a monitor does.
+    public func apply(r: Double, g: Double, b: Double) -> (r: Double, g: Double, b: Double) {
+        guard isActive else { return (r, g, b) }
+
+        var red = curved(r, through: self.red)
+        var green = curved(g, through: self.green)
+        var blue = curved(b, through: self.blue)
+
+        if let master, master.isActive {
+            let luminance = filmLuma(red, green, blue)
+            let delta = curved(luminance, through: master) - luminance
+            red = JSMath.clampByte(red + delta * 0.9)
+            green = JSMath.clampByte(green + delta * 1.05)
+            blue = JSMath.clampByte(blue + delta * 0.85)
+        }
+
+        return (red, green, blue)
+    }
+
+    /// Passes one 8-bit value through a curve, or returns it unchanged when the
+    /// curve cannot define a mapping.
+    private func curved(_ value: Double, through curve: ToneCurve?) -> Double {
+        guard let curve, curve.isActive else { return value }
+        let normalized = (value / 255).clamped(to: 0...1)
+        return JSMath.clampByte(curve.value(at: normalized) * 255)
+    }
+
+    /// Bakes the curves into a colour cube.
+    ///
+    /// Curves are a pure colour transform, so they compose with a film look
+    /// into a single cube — which is what lets the render apply both in one
+    /// texture sample instead of two passes.
+    public func baked(size: Int = ColorCube.defaultSize) -> ColorCube {
+        ColorCube(size: size) { r, g, b in apply(r: r, g: g, b: b) }
+    }
 }

@@ -39,7 +39,9 @@ public enum RenderChecks {
         let context = RenderContext.deterministic()
         results.append(colorManagementCheck(context))
         results.append(gradeKernelCheck())
+        results.append(curveKernelCheck())
         results.append(contentsOf: gradeChecks(context))
+        results.append(contentsOf: curveRenderChecks(context))
         results.append(contentsOf: lookCheck(context))
         results.append(intensityCheck(context))
 
@@ -95,6 +97,19 @@ public enum RenderChecks {
             check.expectWithin(Double(bytes[2]), Double(level), codes: toleranceCodes, "neutral \(level) blue")
         }
 
+        return check.finish()
+    }
+
+    /// The curve kernel resolved out of the bundled libraries.
+    static func curveKernelCheck() -> CheckResult {
+        var check = Checker(suite: "Render", name: "the curve kernel resolves")
+        check.expect(
+            CurveFilter.isAvailable,
+            """
+            darkroomCurves did not resolve. Libraries loaded: \
+            \(KernelLibrary.loadedLibraryNames.joined(separator: ", "))
+            """
+        )
         return check.finish()
     }
 
@@ -183,6 +198,75 @@ public enum RenderChecks {
     /// against 8-bit output. Held at one code for the same reason as
     /// ``toleranceCodes``.
     static let gradeToleranceCodes = 1.0
+
+    // MARK: - Curves
+
+    /// The GPU curve path against `ChannelCurves.apply`, which is itself proven
+    /// against the TypeScript engine.
+    ///
+    /// Includes the steep curves that ruled out cube baking: those are exactly
+    /// where a lookup-table implementation has to earn its extra pass.
+    static func curveRenderChecks(_ context: RenderContext) -> [CheckResult] {
+        // Tolerance is per case, because a curve's slope amplifies error.
+        //
+        // The render path reconstructs each input value through an sRGB encode
+        // before the curve sees it, and that reconstruction is exact only to
+        // within a fraction of a code. A gentle curve passes that fraction
+        // through unchanged; a curve with a slope of 45 multiplies it by 45.
+        // Two codes out of a near-vertical curve is the input error amplified,
+        // not the lookup table failing — a larger table would not move it.
+        //
+        // The pathological cases are here to show the table handles them at all:
+        // baking the same near-vertical curve into a colour cube costs 17 codes,
+        // eight times worse. See CurveFilter.
+        let cases: [(name: String, curves: ChannelCurves, tolerance: Double)] = [
+            ("master S-curve", ChannelCurves(master: .defaultS), gradeToleranceCodes),
+            ("red lift", ChannelCurves(red: ToneCurve([.init(x: 0, y: 0.2), .init(x: 1, y: 1)])), gradeToleranceCodes),
+            ("blue pull", ChannelCurves(blue: ToneCurve([.init(x: 0, y: 0), .init(x: 1, y: 0.8)])), gradeToleranceCodes),
+            ("all channels", ChannelCurves(
+                master: .defaultS,
+                red: ToneCurve([.init(x: 0, y: 0.05), .init(x: 1, y: 0.98)]),
+                blue: ToneCurve([.init(x: 0, y: 0.02), .init(x: 0.5, y: 0.48), .init(x: 1, y: 1)])
+            ), gradeToleranceCodes),
+            ("steep contrast", ChannelCurves(master: ToneCurve([
+                .init(x: 0, y: 0), .init(x: 0.45, y: 0.15),
+                .init(x: 0.55, y: 0.85), .init(x: 1, y: 1),
+            ])), gradeToleranceCodes),
+            ("near-vertical", ChannelCurves(master: ToneCurve([
+                .init(x: 0, y: 0), .init(x: 0.49, y: 0.05),
+                .init(x: 0.51, y: 0.95), .init(x: 1, y: 1),
+            ])), 3.0),
+        ]
+
+        let probes: [(r: Int, g: Int, b: Int)] = [
+            (0, 0, 0), (255, 255, 255), (128, 128, 128), (127, 127, 127), (130, 130, 130),
+            (200, 150, 120), (60, 90, 140), (220, 40, 40),
+        ]
+
+        return cases.map { name, curves, tolerance in
+            var check = Checker(suite: "Render", name: "curves: \(name)")
+
+            for probe in probes {
+                let source = solidImage(r: probe.r, g: probe.g, b: probe.b)
+                let curved = CurveFilter.apply(curves, to: source)
+                let bytes = context.renderToBytes(curved, in: probeRect, colorSpace: sRGB)
+
+                guard bytes.count >= 4 else {
+                    check.fail("\(name): render produced no pixels for \(probe)")
+                    continue
+                }
+
+                let expected = curves.apply(
+                    r: Double(probe.r), g: Double(probe.g), b: Double(probe.b)
+                )
+                check.expectWithin(Double(bytes[0]), expected.r, codes: tolerance, "\(name) \(probe) red")
+                check.expectWithin(Double(bytes[1]), expected.g, codes: tolerance, "\(name) \(probe) green")
+                check.expectWithin(Double(bytes[2]), expected.b, codes: tolerance, "\(name) \(probe) blue")
+            }
+
+            return check.finish()
+        }
+    }
 
     // MARK: - Looks
 

@@ -5,7 +5,142 @@ import DarkroomCore
 public enum GradingChecks {
 
     public static func all() throws -> [CheckResult] {
-        try curveChecks() + cubeChecks()
+        try curveChecks() + curveApplicationChecks() + cubeChecks()
+    }
+
+    /// The full curve stage — per-channel curves plus the master's luminance
+    /// coupling — against pixels the TypeScript engine produced.
+    ///
+    /// Distinct from the interpolation checks above: those prove the *shape* of
+    /// a curve is right, this proves the *plumbing* around it is. A correct
+    /// interpolator wired up with the wrong master weights, or applied to
+    /// channels instead of luminance, passes every check up there.
+    static func curveApplicationChecks() throws -> [CheckResult] {
+        let suite = "Tone curves"
+        let vectors = try ReferenceVectors.curveApplication()
+        var results: [CheckResult] = []
+
+        for reference in vectors.cases {
+            var check = Checker(suite: suite, name: "applying '\(reference.name)' matches the reference")
+
+            func curve(_ key: String) -> ToneCurve? {
+                guard let points = reference.curves[key], points.count >= 2 else { return nil }
+                return ToneCurve(points.map {
+                    .init(
+                        x: $0.x, y: $0.y,
+                        handleInX: $0.handleInX, handleInY: $0.handleInY,
+                        handleOutX: $0.handleOutX, handleOutY: $0.handleOutY
+                    )
+                })
+            }
+
+            let curves = ChannelCurves(
+                master: curve("master"),
+                red: curve("r"),
+                green: curve("g"),
+                blue: curve("b")
+            )
+
+            for (index, pixel) in vectors.pixels.enumerated() where index < reference.results.count {
+                let out = curves.apply(r: pixel[0], g: pixel[1], b: pixel[2])
+                let want = reference.results[index]
+                check.expectClose(out.r, want[0], "\(reference.name) \(pixel) red")
+                check.expectClose(out.g, want[1], "\(reference.name) \(pixel) green")
+                check.expectClose(out.b, want[2], "\(reference.name) \(pixel) blue")
+            }
+
+            results.append(check.finish())
+        }
+
+        // INVARIANT. An inactive curve set must be exactly the identity, or
+        // every photograph opened with the curve panel untouched shifts.
+        var inactive = Checker(suite: suite, name: "inactive curves leave pixels untouched")
+        for pixel in vectors.pixels {
+            let out = ChannelCurves.none.apply(r: pixel[0], g: pixel[1], b: pixel[2])
+            inactive.expect(
+                out.r == pixel[0] && out.g == pixel[1] && out.b == pixel[2],
+                "ChannelCurves.none changed \(pixel) to \(out)"
+            )
+        }
+        results.append(inactive.finish())
+
+        results.append(contentsOf: cubeResolutionChecks(pixels: vectors.pixels))
+
+        return results
+    }
+
+    /// How much accuracy a 64³ cube costs when curves are baked into it.
+    ///
+    /// A colour cube stores 64 lattice points per axis and interpolates
+    /// between them. For a film look — smooth, gentle, and what the format was
+    /// designed for — that is invisible and is what Resolve does. A user tone
+    /// curve is different: it can be pushed near-vertical, and interpolation
+    /// error grows with slope.
+    ///
+    /// This measures the cost across increasing steepness so the decision to
+    /// bake is made against evidence rather than assumption. It reports the
+    /// worst error found even when passing, because the number is the point.
+    static func cubeResolutionChecks(pixels: [[Double]]) -> [CheckResult] {
+        let cases: [(name: String, curve: ToneCurve)] = [
+            ("gentle S", .defaultS),
+            ("moderate contrast", ToneCurve([
+                .init(x: 0, y: 0), .init(x: 0.3, y: 0.2),
+                .init(x: 0.7, y: 0.8), .init(x: 1, y: 1),
+            ])),
+            ("steep contrast", ToneCurve([
+                .init(x: 0, y: 0), .init(x: 0.45, y: 0.15),
+                .init(x: 0.55, y: 0.85), .init(x: 1, y: 1),
+            ])),
+            ("near-vertical", ToneCurve([
+                .init(x: 0, y: 0), .init(x: 0.49, y: 0.05),
+                .init(x: 0.51, y: 0.95), .init(x: 1, y: 1),
+            ])),
+        ]
+
+        // A dense sweep rather than the reference pixels: the worst error sits
+        // wherever the curve is steepest, which a dozen scattered probes will
+        // miss by chance.
+        let sweep: [(Double, Double, Double)] = stride(from: 0.0, through: 255.0, by: 3.0)
+            .map { ($0, $0, $0) }
+
+        return cases.map { name, curve in
+            var check = Checker(suite: "Tone curves", name: "baking a \(name) curve stays within tolerance")
+            let curves = ChannelCurves(master: curve)
+            let cube = curves.baked()
+
+            var worst = 0.0
+            for probe in sweep {
+                let direct = curves.apply(r: probe.0, g: probe.1, b: probe.2)
+                let sampled = cube.sample(r: probe.0, g: probe.1, b: probe.2)
+                worst = max(worst, abs(sampled.r - direct.r))
+                worst = max(worst, abs(sampled.g - direct.g))
+                worst = max(worst, abs(sampled.b - direct.b))
+            }
+
+            // This check exists to *document* a limit, not to guard one. The
+            // render path deliberately does not bake curves into a cube — see
+            // CurveFilter — precisely because these numbers are unacceptable
+            // above a gentle curve. What must hold is that the relationship
+            // still behaves as measured, so the reasoning stays valid: gentle
+            // curves are cheap, steep ones are not, and the cost rises with
+            // slope.
+            let limits: [String: Double] = [
+                "gentle S": 2.0,
+                "moderate contrast": 3.0,
+                "steep contrast": 6.0,
+                "near-vertical": 25.0,
+            ]
+            let limit = limits[name] ?? 2.0
+            check.expect(
+                worst <= limit,
+                """
+                baking a \(name) curve now costs \(String(format: "%.2f", worst)) codes, \
+                above the \(String(format: "%.1f", limit)) this analysis assumed — \
+                the cube-resolution reasoning in CurveFilter needs revisiting
+                """
+            )
+            return check.finish()
+        }
     }
 
     // MARK: - Tone curves

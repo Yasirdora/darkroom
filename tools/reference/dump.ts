@@ -45,7 +45,7 @@ import {
   getProfileTypicalEI,
   getRecommendedInputExposure,
 } from '../../src/lib/processing/input-profile';
-import { interpolateCurve, makeDefaultSCurve } from '../../src/lib/processing/curves';
+import { applyCurves, interpolateCurve, makeDefaultSCurve } from '../../src/lib/processing/curves';
 import { FILTER_PRESETS } from '../../src/lib/processing/filters/presets';
 import { formatCubeFile } from '../../src/lib/export/cube-file';
 import {
@@ -216,6 +216,61 @@ const dumpCurves = () => ({
   })),
 });
 
+// ── Full curve application ──────────────────────────────────────────────────
+
+/** Pixels that exercise the master curve's luminance coupling: neutrals, where
+ *  the per-channel weights cancel, and saturated colours, where they do not. */
+const CURVE_PIXELS: Array<[number, number, number]> = [
+  [0, 0, 0], [255, 255, 255], [128, 128, 128], [64, 64, 64], [200, 200, 200],
+  [200, 150, 120], [220, 40, 40], [40, 220, 40], [40, 40, 220],
+  [30, 60, 90], [180, 200, 220], [128, 64, 200],
+];
+
+/** Channel combinations covering master alone, single channels, and all four
+ *  together — where per-channel and master interact. */
+const CURVE_APPLY_CASES: Array<{ name: string; curves: Record<string, CurvePoint[]> }> = [
+  { name: 'masterSCurve', curves: { master: makeDefaultSCurve() } },
+  { name: 'redLift', curves: { r: [{ x: 0, y: 0.2 }, { x: 1, y: 1 }] } },
+  { name: 'greenPull', curves: { g: [{ x: 0, y: 0 }, { x: 1, y: 0.8 }] } },
+  { name: 'blueContrast', curves: { b: [{ x: 0, y: 0 }, { x: 0.5, y: 0.4 }, { x: 1, y: 1 }] } },
+  {
+    name: 'allChannels',
+    curves: {
+      master: makeDefaultSCurve(),
+      r: [{ x: 0, y: 0.05 }, { x: 1, y: 0.98 }],
+      g: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+      b: [{ x: 0, y: 0.02 }, { x: 0.5, y: 0.48 }, { x: 1, y: 1 }],
+    },
+  },
+];
+
+const dumpCurveApplication = () => ({
+  description:
+    'applyCurves() on fixed pixels — covers the master curve\'s luminance coupling and its per-channel weights.',
+  pixels: CURVE_PIXELS,
+  cases: CURVE_APPLY_CASES.map(({ name, curves }) => {
+    const data = new Uint8ClampedArray(CURVE_PIXELS.length * 4);
+    CURVE_PIXELS.forEach(([r, g, b], index) => {
+      data[index * 4] = r;
+      data[index * 4 + 1] = g;
+      data[index * 4 + 2] = b;
+      data[index * 4 + 3] = 255;
+    });
+
+    const output = applyCurves(new ImageData(data, CURVE_PIXELS.length, 1), curves);
+    const results: number[][] = [];
+    for (let index = 0; index < CURVE_PIXELS.length; index += 1) {
+      results.push([
+        output.data[index * 4],
+        output.data[index * 4 + 1],
+        output.data[index * 4 + 2],
+      ]);
+    }
+
+    return { name, curves, results };
+  }),
+});
+
 // ── Film stock LUTs ─────────────────────────────────────────────────────────
 
 /** Lattice indices sampled from each 64³ cube: both ends plus every 8th step.
@@ -371,6 +426,7 @@ const main = () => {
   files['input-profiles.json'] = write('input-profiles.json', dumpInputProfiles());
   files['curves.json'] = write('curves.json', dumpCurves());
   files['film-stocks.json'] = write('film-stocks.json', dumpFilmStocks());
+  files['curve-application.json'] = write('curve-application.json', dumpCurveApplication());
   files['cube-format.json'] = write('cube-format.json', dumpCubeFormat());
   files['grade-share.json'] = write('grade-share.json', dumpGradeShare());
 
