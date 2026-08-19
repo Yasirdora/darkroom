@@ -43,26 +43,27 @@ struct MetalKernelPlugin: BuildToolPlugin {
         let standard = sources.filter { !$0.lastPathComponent.hasSuffix(".ci.metal") }
 
         var commands: [Command] = []
-        if !coreImage.isEmpty {
+
+        // One library per Core Image source, because `metallib -cikernel`
+        // accepts exactly one input file — Core Image libraries cannot be
+        // linked from several objects the way ordinary Metal libraries can.
+        // `KernelLibrary` searches every bundled library for a kernel, so the
+        // split is invisible to callers.
+        for source in coreImage {
+            let name = source.lastPathComponent
+                .replacingOccurrences(of: ".ci.metal", with: "")
             commands.append(
-                try library(
-                    named: "DarkroomCIKernels",
-                    from: coreImage,
-                    coreImage: true,
-                    context: context
-                )
+                try library(named: name, from: [source], coreImage: true, context: context)
             )
         }
+
+        // Ordinary Metal links normally, so the compute shaders share one.
         if !standard.isEmpty {
             commands.append(
-                try library(
-                    named: "DarkroomKernels",
-                    from: standard,
-                    coreImage: false,
-                    context: context
-                )
+                try library(named: "DarkroomKernels", from: standard, coreImage: false, context: context)
             )
         }
+
         return commands
     }
 

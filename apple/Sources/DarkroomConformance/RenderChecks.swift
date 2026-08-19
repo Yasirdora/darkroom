@@ -34,6 +34,8 @@ public enum RenderChecks {
         // the remaining checks would report dozens of misleading failures.
         let context = RenderContext.deterministic()
         results.append(colorManagementCheck(context))
+        results.append(gradeKernelCheck())
+        results.append(contentsOf: gradeChecks(context))
         results.append(contentsOf: lookCheck(context))
         results.append(intensityCheck(context))
 
@@ -91,6 +93,91 @@ public enum RenderChecks {
 
         return check.finish()
     }
+
+    // MARK: - Grading kernel
+
+    /// The grading kernel resolved out of the bundled libraries.
+    static func gradeKernelCheck() -> CheckResult {
+        var check = Checker(suite: "Render", name: "the grading kernel resolves")
+        check.expect(
+            GradeFilter.isAvailable,
+            """
+            darkroomGrade did not resolve. Libraries loaded: \
+            \(KernelLibrary.loadedLibraryNames.joined(separator: ", "))
+            """
+        )
+        return check.finish()
+    }
+
+    /// The GPU grade agrees with the CPU model on individual controls.
+    ///
+    /// Each case moves one slider, which is what makes a failure diagnosable:
+    /// a whole-grade comparison tells you the result is wrong, a per-control
+    /// one tells you which control is wrong.
+    ///
+    /// Expectations are computed by an independent Swift implementation of the
+    /// same formulas rather than lifted from the reference JSON — the reference
+    /// captures the 8-bit CPU pipeline, and this layer deliberately no longer
+    /// rounds to bytes between stages.
+    static func gradeChecks(_ context: RenderContext) -> [CheckResult] {
+        let cases: [(name: String, mutate: (inout Adjustments) -> Void)] = [
+            ("neutral", { _ in }),
+            ("exposure +25", { $0.exposure = 25 }),
+            ("exposure -25", { $0.exposure = -25 }),
+            ("contrast +40", { $0.contrast = 40 }),
+            ("brightness +20", { $0.brightness = 20 }),
+            ("temperature +50", { $0.temperature = 50 }),
+            ("temperature -50", { $0.temperature = -50 }),
+            ("tint +40", { $0.tint = 40 }),
+            ("saturation -100", { $0.saturation = -100 }),
+            ("saturation +50", { $0.saturation = 50 }),
+            ("hue +90", { $0.hue = 90 }),
+            ("sepia 100", { $0.sepia = 100 }),
+            ("highlights -60", { $0.highlights = -60 }),
+            ("shadows +60", { $0.shadows = 60 }),
+        ]
+
+        let probes: [(r: Int, g: Int, b: Int)] = [
+            (0, 0, 0), (255, 255, 255), (128, 128, 128),
+            (200, 150, 120), (60, 90, 140), (220, 40, 40),
+        ]
+
+        return cases.map { name, mutate in
+            var check = Checker(suite: "Render", name: "grade: \(name)")
+            var adjustments = Adjustments()
+            mutate(&adjustments)
+
+            for probe in probes {
+                let source = solidImage(r: probe.r, g: probe.g, b: probe.b)
+                let graded = GradeFilter.applyColorStage(adjustments, to: source)
+                let bytes = context.renderToBytes(graded, in: probeRect, colorSpace: sRGB)
+
+                guard bytes.count >= 4 else {
+                    check.fail("\(name): render produced no pixels for \(probe)")
+                    continue
+                }
+
+                let expected = ReferenceGrade.apply(
+                    adjustments,
+                    r: Double(probe.r), g: Double(probe.g), b: Double(probe.b)
+                )
+
+                check.expectWithin(Double(bytes[0]), expected.r, codes: gradeToleranceCodes, "\(name) \(probe) red")
+                check.expectWithin(Double(bytes[1]), expected.g, codes: gradeToleranceCodes, "\(name) \(probe) green")
+                check.expectWithin(Double(bytes[2]), expected.b, codes: gradeToleranceCodes, "\(name) \(probe) blue")
+            }
+
+            return check.finish()
+        }
+    }
+
+    /// Tolerance for the grading kernel, in 8-bit code values.
+    ///
+    /// Looser than the cube tolerance because more accumulates here: an sRGB
+    /// encode and decode, an HSL round trip, and half-float arithmetic through
+    /// a chain of stages. Three codes is still just over one percent, and a
+    /// wrong formula moves things by far more.
+    static let gradeToleranceCodes = 3.0
 
     // MARK: - Looks
 
