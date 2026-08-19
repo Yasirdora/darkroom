@@ -48,8 +48,14 @@ import {
 import { interpolateCurve, makeDefaultSCurve } from '../../src/lib/processing/curves';
 import { FILTER_PRESETS } from '../../src/lib/processing/filters/presets';
 import { formatCubeFile } from '../../src/lib/export/cube-file';
+import {
+  decodeGradePayload,
+  encodeGradePayload,
+  serializeGradeState,
+} from '../../src/lib/grade-share';
+import { DEFAULT_EDIT_STATE } from '../../src/lib/editor/constants';
 import { LUT_SIZE } from '../../src/lib/processing/lut';
-import type { CurvePoint, InputProfileId } from '../../src/lib/core/types';
+import type { CurvePoint, EditState, InputProfileId } from '../../src/lib/core/types';
 
 const OUT_DIR = resolve(import.meta.dirname, '../../reference');
 
@@ -277,6 +283,81 @@ const dumpCubeFormat = () => {
   };
 };
 
+// ── Grade share payloads ────────────────────────────────────────────────────
+
+/** Grades chosen to exercise every field of the share payload, including the
+ *  sparse-encoding rule (defaults omitted) and curves with Bézier handles. */
+const GRADE_CASES: Array<{ name: string; mutate: (state: EditState) => void }> = [
+  { name: 'neutral', mutate: () => {} },
+  {
+    name: 'adjustmentsOnly',
+    mutate: (s) => {
+      s.adjustments.exposure = 25;
+      s.adjustments.contrast = -12;
+      s.adjustments.vibrance = 30;
+      s.adjustments.hue = -45;
+    },
+  },
+  { name: 'filmStockOnly', mutate: (s) => { s.filterId = 'portra400'; } },
+  {
+    name: 'stockWithIntensity',
+    mutate: (s) => { s.filterId = 'velvia50'; s.filterIntensity = 65; },
+  },
+  {
+    name: 'logProfile',
+    mutate: (s) => {
+      s.inputProfile = 's-log3';
+      s.inputExposure = 1.5;
+      s.inputLinearMode = true;
+    },
+  },
+  {
+    name: 'curvesWithHandles',
+    mutate: (s) => { s.curves = { master: makeDefaultSCurve() }; },
+  },
+  {
+    name: 'perChannelCurves',
+    mutate: (s) => {
+      s.curves = {
+        r: [{ x: 0, y: 0.05 }, { x: 1, y: 0.95 }],
+        b: [{ x: 0, y: 0 }, { x: 0.5, y: 0.45 }, { x: 1, y: 1 }],
+      };
+    },
+  },
+  {
+    name: 'everything',
+    mutate: (s) => {
+      s.adjustments.exposure = -18;
+      s.adjustments.temperature = 40;
+      s.adjustments.sepia = 15;
+      s.filterId = 'eterna';
+      s.filterIntensity = 80;
+      s.inputProfile = 'arri-logc3';
+      s.inputExposure = -0.75;
+      s.curves = { master: makeDefaultSCurve() };
+    },
+  },
+];
+
+const dumpGradeShare = () => ({
+  description:
+    'Compact grade payloads and their base64url encodings — the wire contract shared with the native app.',
+  cases: GRADE_CASES.map(({ name, mutate }) => {
+    const state = structuredClone(DEFAULT_EDIT_STATE) as EditState;
+    mutate(state);
+    const payload = serializeGradeState(state);
+    return {
+      name,
+      payload,
+      encoded: payload ? encodeGradePayload(payload) : null,
+      // Proves the web app's own decoder accepts what its encoder produced.
+      roundTrips: payload
+        ? JSON.stringify(decodeGradePayload(encodeGradePayload(payload))) === JSON.stringify(payload)
+        : true,
+    };
+  }),
+});
+
 // ── Entry point ─────────────────────────────────────────────────────────────
 
 const main = () => {
@@ -291,6 +372,7 @@ const main = () => {
   files['curves.json'] = write('curves.json', dumpCurves());
   files['film-stocks.json'] = write('film-stocks.json', dumpFilmStocks());
   files['cube-format.json'] = write('cube-format.json', dumpCubeFormat());
+  files['grade-share.json'] = write('grade-share.json', dumpGradeShare());
 
   writeFileSync(
     resolve(OUT_DIR, 'manifest.json'),

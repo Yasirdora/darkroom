@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
     "reference": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/dump.ts",
-    "generate:stocks": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/generate-stocks.ts"
+    "generate:stocks": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/generate-stocks.ts",
+    "verify:grade-share": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/verify-grade-share.ts"
   },
   "engines": {
     "node": ">=20"

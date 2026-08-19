@@ -1,0 +1,175 @@
+{
+  "description": "Compact grade payloads and their base64url encodings — the wire contract shared with the native app.",
+  "cases": [
+    {
+      "name": "neutral",
+      "payload": null,
+      "encoded": null,
+      "roundTrips": true
+    },
+    {
+      "name": "adjustmentsOnly",
+      "payload": {
+        "a": {
+          "exposure": 25,
+          "contrast": -12,
+          "vibrance": 30,
+          "hue": -45
+        }
+      },
+      "encoded": "eyJhIjp7ImV4cG9zdXJlIjoyNSwiY29udHJhc3QiOi0xMiwidmlicmFuY2UiOjMwLCJodWUiOi00NX19",
+      "roundTrips": true
+    },
+    {
+      "name": "filmStockOnly",
+      "payload": {
+        "f": "portra400"
+      },
+      "encoded": "eyJmIjoicG9ydHJhNDAwIn0",
+      "roundTrips": true
+    },
+    {
+      "name": "stockWithIntensity",
+      "payload": {
+        "f": "velvia50",
+        "fi": 65
+      },
+      "encoded": "eyJmIjoidmVsdmlhNTAiLCJmaSI6NjV9",
+      "roundTrips": true
+    },
+    {
+      "name": "logProfile",
+      "payload": {
+        "ip": "s-log3",
+        "ie": 1.5,
+        "il": 1
+      },
+      "encoded": "eyJpcCI6InMtbG9nMyIsImllIjoxLjUsImlsIjoxfQ",
+      "roundTrips": true
+    },
+    {
+      "name": "curvesWithHandles",
+      "payload": {
+        "c": {
+          "master": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 0.25,
+              "y": 0.18,
+              "handleOutX": 0.38,
+              "handleOutY": 0.22
+            },
+            {
+              "x": 0.5,
+              "y": 0.5,
+              "handleInX": 0.35,
+              "handleInY": 0.32,
+              "handleOutX": 0.65,
+              "handleOutY": 0.68
+            },
+            {
+              "x": 0.75,
+              "y": 0.82,
+              "handleInX": 0.62,
+              "handleInY": 0.72,
+              "handleOutX": 0.82,
+              "handleOutY": 0.88
+            },
+            {
+              "x": 1,
+              "y": 1
+            }
+          ]
+        }
+      },
+      "encoded": "eyJjIjp7Im1hc3RlciI6W3sieCI6MCwieSI6MH0seyJ4IjowLjI1LCJ5IjowLjE4LCJoYW5kbGVPdXRYIjowLjM4LCJoYW5kbGVPdXRZIjowLjIyfSx7IngiOjAuNSwieSI6MC41LCJoYW5kbGVJblgiOjAuMzUsImhhbmRsZUluWSI6MC4zMiwiaGFuZGxlT3V0WCI6MC42NSwiaGFuZGxlT3V0WSI6MC42OH0seyJ4IjowLjc1LCJ5IjowLjgyLCJoYW5kbGVJblgiOjAuNjIsImhhbmRsZUluWSI6MC43MiwiaGFuZGxlT3V0WCI6MC44MiwiaGFuZGxlT3V0WSI6MC44OH0seyJ4IjoxLCJ5IjoxfV19fQ",
+      "roundTrips": true
+    },
+    {
+      "name": "perChannelCurves",
+      "payload": {
+        "c": {
+          "r": [
+            {
+              "x": 0,
+              "y": 0.05
+            },
+            {
+              "x": 1,
+              "y": 0.95
+            }
+          ],
+          "b": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 0.5,
+              "y": 0.45
+            },
+            {
+              "x": 1,
+              "y": 1
+            }
+          ]
+        }
+      },
+      "encoded": "eyJjIjp7InIiOlt7IngiOjAsInkiOjAuMDV9LHsieCI6MSwieSI6MC45NX1dLCJiIjpbeyJ4IjowLCJ5IjowfSx7IngiOjAuNSwieSI6MC40NX0seyJ4IjoxLCJ5IjoxfV19fQ",
+      "roundTrips": true
+    },
+    {
+      "name": "everything",
+      "payload": {
+        "a": {
+          "exposure": -18,
+          "temperature": 40,
+          "sepia": 15
+        },
+        "f": "eterna",
+        "fi": 80,
+        "c": {
+          "master": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 0.25,
+              "y": 0.18,
+              "handleOutX": 0.38,
+              "handleOutY": 0.22
+            },
+            {
+              "x": 0.5,
+              "y": 0.5,
+              "handleInX": 0.35,
+              "handleInY": 0.32,
+              "handleOutX": 0.65,
+              "handleOutY": 0.68
+            },
+            {
+              "x": 0.75,
+              "y": 0.82,
+              "handleInX": 0.62,
+              "handleInY": 0.72,
+              "handleOutX": 0.82,
+              "handleOutY": 0.88
+            },
+            {
+              "x": 1,
+              "y": 1
+            }
+          ]
+        },
+        "ip": "arri-logc3",
+        "ie": -0.75
+      },
+      "encoded": "eyJhIjp7ImV4cG9zdXJlIjotMTgsInRlbXBlcmF0dXJlIjo0MCwic2VwaWEiOjE1fSwiZiI6ImV0ZXJuYSIsImZpIjo4MCwiYyI6eyJtYXN0ZXIiOlt7IngiOjAsInkiOjB9LHsieCI6MC4yNSwieSI6MC4xOCwiaGFuZGxlT3V0WCI6MC4zOCwiaGFuZGxlT3V0WSI6MC4yMn0seyJ4IjowLjUsInkiOjAuNSwiaGFuZGxlSW5YIjowLjM1LCJoYW5kbGVJblkiOjAuMzIsImhhbmRsZU91dFgiOjAuNjUsImhhbmRsZU91dFkiOjAuNjh9LHsieCI6MC43NSwieSI6MC44MiwiaGFuZGxlSW5YIjowLjYyLCJoYW5kbGVJblkiOjAuNzIsImhhbmRsZU91dFgiOjAuODIsImhhbmRsZU91dFkiOjAuODh9LHsieCI6MSwieSI6MX1dfSwiaXAiOiJhcnJpLWxvZ2MzIiwiaWUiOi0wLjc1fQ",
+      "roundTrips": true
+    }
+  ]
+}

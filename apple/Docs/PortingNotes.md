@@ -193,3 +193,29 @@ result and the reason the metadata check exists: grain is spatial, so it is
 deliberately not baked into the cube, and the digests are structurally blind to
 it. Without a separate check, every LUT would match while every image carried
 the wrong grain.
+
+---
+
+## The grade-share wire format
+
+The payload the web app puts in a `?grade=` URL is a contract between two
+codebases, so it gets checked in both directions. Swift decoding the web app's
+output is a normal conformance check. The other direction cannot be checked from
+Swift at all, so `darkroom-conformance --emit-grade-share` writes Swift-encoded
+payloads and `npm run verify:grade-share` feeds them through the web app's real
+decoder — 61 cases, covering every film stock plus a look-free grade.
+
+**Key order deliberately differs.** Swift sorts JSON keys so a given grade always
+produces the same URL; JavaScript emits insertion order. The two therefore do
+*not* produce byte-identical strings, and should not be expected to — key order
+carries no meaning in JSON. What must hold, and is checked, is that each side
+reads what the other writes.
+
+**The format carries the grade, not the edit.** Tone, colour, curves, look and
+input profile travel; crop, rotation, imported LUT bytes and reference-image
+matching do not. Those are either specific to one image or far too large for a
+URL, and a shared grade is meant to land on the recipient's own photo.
+
+**Out-of-range values are clamped, not rejected.** A link built by an older or
+newer version still opens, just constrained. An unknown film stock id is dropped
+rather than left dangling, since the picker could not show it.

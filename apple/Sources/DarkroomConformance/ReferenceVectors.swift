@@ -92,6 +92,26 @@ public enum ReferenceVectors {
         }
     }
 
+    public struct GradeShares: Decodable, Sendable {
+        public let cases: [Case]
+
+        public struct Case: Decodable, Sendable {
+            public let name: String
+            public let payload: Payload?
+            public let encoded: String?
+            public let roundTrips: Bool
+
+            public struct Payload: Decodable, Sendable {
+                public let a: [String: Double]?
+                public let f: String?
+                public let fi: Double?
+                public let ip: String?
+                public let ie: Double?
+                public let il: Int?
+            }
+        }
+    }
+
     // MARK: - Loading
 
     /// The repository's `reference/` directory.
@@ -120,6 +140,7 @@ public enum ReferenceVectors {
     public static func inputProfiles() throws -> InputProfiles { try load(InputProfiles.self, from: "input-profiles.json") }
     public static func curves() throws -> Curves { try load(Curves.self, from: "curves.json") }
     public static func filmStocks() throws -> FilmStocks { try load(FilmStocks.self, from: "film-stocks.json") }
+    public static func gradeShares() throws -> GradeShares { try load(GradeShares.self, from: "grade-share.json") }
 
     public enum ReferenceError: Error, CustomStringConvertible {
         case missing(file: String, expectedAt: String)

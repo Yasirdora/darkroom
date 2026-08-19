@@ -28,6 +28,13 @@ swift run darkroom-conformance --verbose  # every check listed
 swift test                                # same suite, one case per check
 ```
 
+And from the repository root, the half of the grade-share contract Swift cannot
+check by itself — that JavaScript reads what Swift writes:
+
+```sh
+npm run verify:grade-share
+```
+
 Exit status is non-zero on any divergence, so the CLI drops straight into CI.
 
 ## What is proven, and how
@@ -69,10 +76,10 @@ defines a check of its own, so there is exactly one definition of what
 | Grading | tone curves with Bézier handles, master + per channel |
 | LUT | 64³ cube, `.cube` read and write with DOMAIN rescaling |
 | Film | emulsion model + 60 stocks, every LUT byte-identical |
-| Conformance | 128 checks, 21,610 comparisons |
+| Model | `EditState`, `Adjustments`, `Transform`, grade-share codec |
+| Conformance | 132 checks, 21,718 comparisons + a cross-language check |
 
-Not yet ported: `EditState` and the adjustment stack. Rendering — Core Image and
-Metal — is Phase 2.
+Phase 1 is complete. Rendering — Core Image and Metal — is Phase 2.
 
 ### Generated code
 
