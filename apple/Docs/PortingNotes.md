@@ -219,3 +219,61 @@ URL, and a shared grade is meant to land on the recipient's own photo.
 **Out-of-range values are clamped, not rejected.** A link built by an older or
 newer version still opens, just constrained. An unknown film stock id is dropped
 rather than left dangling, since the picker could not show it.
+
+---
+
+## Phase 2 — the Metal toolchain
+
+Getting Core Image kernels to compile inside SwiftPM took three separate fixes.
+Recorded in full because every one of them presents as a misleading error.
+
+### `xcrun -f metal` resolves to a stub that lies about being missing
+
+Since Xcode 16, the Metal compiler ships as a separately downloaded component
+mounted read-only under `/var/run/com.apple.security.cryptexd`. Xcode's own
+toolchain keeps a **stub** `metal` binary whose only job is to print:
+
+```
+cannot execute tool 'metal' due to missing Metal Toolchain;
+use: xcodebuild -downloadComponent MetalToolchain
+```
+
+Inside a SwiftPM build, `xcrun -f metal` resolves to that stub even when the
+real compiler is installed and working — so the build fails while telling you to
+install something you already have. The same `xcrun -f metal` in an interactive
+shell returns the real path, which makes it look like an environment problem
+rather than a resolution one.
+
+The plugin therefore trusts `xcrun` only when what it returns actually runs
+(`--version` exits zero), and otherwise globs the mount directly. The mount path
+carries an asset version and changes across reboots and updates, so it is never
+hardcoded.
+
+### SwiftPM exports `TOOLCHAINS`
+
+It pins `xcrun` to the Xcode default toolchain, which hides any separately
+mounted one. Cleared in the build script.
+
+### SwiftPM tries to compile `.metal` files itself
+
+Before the plugin ever runs. Its built-in handling hits the same stub and fails
+the build during planning, so the plugin's output never matters. The shaders are
+`exclude:`d from the target and discovered by scanning instead, which hands them
+entirely to the plugin.
+
+Diagnosing this needed a controlled experiment rather than more reading: with the
+shaders present but the plugin **detached**, the build succeeded — proving the
+`exclude` worked and the remaining failure was the plugin's own.
+
+### Colour cubes are applied in sRGB, not the working space
+
+The stock profiles were fitted against 8-bit **display-encoded** values. The
+render context works in extended linear sRGB, so sampling a cube there would
+feed it inputs it was never fitted to — shadows crush and the look reads as
+over-contrasty.
+
+`CIColorCubeWithColorSpace` exists for this: Core Image converts into sRGB,
+samples, and converts back. The render checks compare against
+`ColorCube.sample()` at a two-code tolerance, which is loose enough for float
+rounding and tight enough that a wrong colour space — a ten-code-plus midtone
+shift — cannot pass.

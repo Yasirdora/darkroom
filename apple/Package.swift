@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 
 import PackageDescription
 
@@ -13,6 +13,7 @@ let package = Package(
     ],
     products: [
         .library(name: "DarkroomCore", targets: ["DarkroomCore"]),
+        .library(name: "DarkroomRender", targets: ["DarkroomRender"]),
         .library(name: "DarkroomConformance", targets: ["DarkroomConformance"]),
         .executable(name: "darkroom-conformance", targets: ["darkroom-conformance"]),
     ],
@@ -25,6 +26,20 @@ let package = Package(
                 .enableUpcomingFeature("InternalImportsByDefault"),
             ]
         ),
+        // Compiles the Metal shader sources into .metallib files at build
+        // time. See Plugins/MetalKernelPlugin for why this exists.
+        .plugin(name: "MetalKernelPlugin", capability: .buildTool()),
+        .target(
+            name: "DarkroomRender",
+            dependencies: ["DarkroomCore"],
+            // SwiftPM's own Metal handling cannot find the separately mounted
+            // Metal toolchain and fails the build before the plugin runs.
+            // Excluding the directory hands the shaders entirely to the plugin,
+            // which discovers them by scanning.
+            exclude: ["Kernels"],
+            swiftSettings: [.swiftLanguageMode(.v6)],
+            plugins: ["MetalKernelPlugin"]
+        ),
         // The port's conformance suite: every check that proves DarkroomCore
         // agrees with the TypeScript engine's golden vectors.
         //
@@ -36,7 +51,7 @@ let package = Package(
         // than reimplementing any of it.
         .target(
             name: "DarkroomConformance",
-            dependencies: ["DarkroomCore"],
+            dependencies: ["DarkroomCore", "DarkroomRender"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .executableTarget(
