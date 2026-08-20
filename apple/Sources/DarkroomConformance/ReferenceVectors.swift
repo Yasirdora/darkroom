@@ -117,6 +117,43 @@ public enum ReferenceVectors {
         }
     }
 
+    public struct Qualifiers: Decodable, Sendable {
+        public let image: Size
+        public let cases: [Case]
+
+        public struct Size: Decodable, Sendable {
+            public let width: Int
+            public let height: Int
+        }
+
+        public struct Case: Decodable, Sendable {
+            public let name: String
+            public let config: Config
+            public let mask: [Double]
+
+            public struct Config: Decodable, Sendable {
+                public let enabled: Bool
+                public let hueMin: Double
+                public let hueMax: Double
+                public let satMin: Double
+                public let satMax: Double
+                public let lumMin: Double
+                public let lumMax: Double
+                public let hueSoft: Double
+                public let satSoft: Double
+                public let lumSoft: Double
+                public let spatialType: String
+                public let spatialX: Double
+                public let spatialY: Double
+                public let spatialWidth: Double
+                public let spatialHeight: Double
+                public let spatialRotation: Double
+                public let spatialFeather: Double
+                public let invert: Bool
+            }
+        }
+    }
+
     public struct FilmStocks: Decodable, Sendable {
         public let lutSize: Int
         public let latticeIndices: [Int]
@@ -192,6 +229,7 @@ public enum ReferenceVectors {
     public static func curveApplication() throws -> CurveApplication { try load(CurveApplication.self, from: "curve-application.json") }
     public static func adjustments() throws -> AdjustmentVectors { try load(AdjustmentVectors.self, from: "adjustments.json") }
     public static func scopes() throws -> Scopes { try load(Scopes.self, from: "scopes.json") }
+    public static func qualifiers() throws -> Qualifiers { try load(Qualifiers.self, from: "qualifiers.json") }
 
     public enum ReferenceError: Error, CustomStringConvertible {
         case missing(file: String, expectedAt: String)

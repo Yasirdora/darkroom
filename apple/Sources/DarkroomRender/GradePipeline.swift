@@ -21,7 +21,8 @@ import DarkroomCore
 /// 3. **Grade** — the fused colour kernel.
 /// 4. **Curves** — after the grade, so the curve editor's readout matches what
 ///    the histogram shows.
-/// 5. **Look** — the film stock or imported LUT, on top of the corrected image.
+/// 5. **Look** — the film stock or imported LUT, on top of the corrected image,
+///    restricted by the qualifier if one is set.
 /// 6. **Spatial** — clarity, sharpening, vignette, grain. Last, because they
 ///    describe the print rather than the picture.
 public enum GradePipeline {
@@ -47,7 +48,13 @@ public enum GradePipeline {
         result = CurveFilter.apply(state.curves, to: result)
 
         if let cube = LookFilter.cube(for: state.look) {
+            // The corrected image, before the look. Held because a qualifier
+            // blends the look back against it — blending against the *original*
+            // instead would undo the tonal grade wherever the mask excluded,
+            // which reads as the correction failing in patches.
+            let corrected = result
             result = LookFilter.apply(cube, to: result, intensity: state.lookIntensity)
+            result = QualifierFilter.apply(state.qualifier, graded: result, source: corrected)
         }
 
         result = GradeFilter.applySpatialStages(state.adjustments, to: result)

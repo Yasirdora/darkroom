@@ -24,6 +24,7 @@ struct Options {
     var quality = 0.92
     var gradeURL: String?
     var exportCube: URL?
+    var qualifier = Qualifier()
     var showScopes = false
     var listLooks = false
     var showHelp = false
@@ -51,6 +52,16 @@ OPTIONS
       --export-cube <path>  Also write the grade as a .cube LUT
       --scopes              Print a histogram and vectorscope of the result
 
+SELECTION (restricts the look; the tonal grade always applies everywhere)
+      --hue-range <a-b>     Select a hue band in degrees, e.g. 0-80 for warm
+                            tones. A range that wraps, e.g. 340-20, selects reds
+      --hue-softness <n>    Feather width in degrees            (default: 8)
+      --window <shape>      none | linear | ellipse | radial
+      --window-centre <x,y> Normalised 0-1, from the top left   (default: 0.5,0.5)
+      --window-size <w,h>   Normalised 0-1                      (default: 1,1)
+      --window-rotation <n> Degrees
+      --invert-selection    Select everything outside the above
+
 ADJUSTMENTS (each -100 to 100 unless noted)
       --exposure, --brightness, --contrast
       --highlights, --shadows, --whites, --blacks
@@ -64,6 +75,10 @@ EXAMPLES
   darkroom photo.jpg --look portra400
   darkroom raw.arw --profile s-log3 --look eterna --exposure 10 -o graded.tif
   darkroom photo.jpg --grade 'https://darkroom.ysr.design/?grade=eyJ...'
+  darkroom portrait.jpg --look velvia50 --hue-range 340-30 --invert-selection
+      (saturate everything except skin)
+  darkroom landscape.jpg --look noirTeal --window linear --window-rotation 90
+      (grade the sky, leave the ground)
 """
 
 // MARK: - Argument parsing
@@ -113,6 +128,42 @@ func parse(_ arguments: [String]) throws -> Options {
         case "--s-curve": options.curves.master = .defaultS
         case "--scopes": options.showScopes = true
 
+        // Qualifier — restricts the look to a selection.
+        case "--hue-range":
+            let raw = try next(argument)
+            let parts = raw.split(separator: "-", maxSplits: 1).compactMap { Double($0) }
+            guard parts.count == 2 else { throw CLIError.notANumber(argument, raw) }
+            options.qualifier.isEnabled = true
+            options.qualifier.hueMin = parts[0]
+            options.qualifier.hueMax = parts[1]
+        case "--hue-softness":
+            options.qualifier.isEnabled = true
+            options.qualifier.hueSoftness = try number(argument)
+        case "--window":
+            let raw = try next(argument)
+            guard let shape = Qualifier.WindowShape(rawValue: raw) else {
+                throw CLIError.unknownWindow(raw)
+            }
+            options.qualifier.isEnabled = true
+            options.qualifier.windowShape = shape
+        case "--window-centre", "--window-center":
+            let raw = try next(argument)
+            let parts = raw.split(separator: ",").compactMap { Double($0) }
+            guard parts.count == 2 else { throw CLIError.notANumber(argument, raw) }
+            options.qualifier.windowX = parts[0]
+            options.qualifier.windowY = parts[1]
+        case "--window-size":
+            let raw = try next(argument)
+            let parts = raw.split(separator: ",").compactMap { Double($0) }
+            guard parts.count == 2 else { throw CLIError.notANumber(argument, raw) }
+            options.qualifier.windowWidth = parts[0]
+            options.qualifier.windowHeight = parts[1]
+        case "--window-rotation":
+            options.qualifier.windowRotation = try number(argument)
+        case "--invert-selection":
+            options.qualifier.isEnabled = true
+            options.qualifier.isInverted = true
+
         default:
             // Adjustments share one shape, so they are matched by name rather
             // than enumerated in seventeen near-identical cases.
@@ -141,6 +192,7 @@ enum CLIError: Error, CustomStringConvertible {
     case unknownFormat(String)
     case unknownProfile(String)
     case unexpectedArgument(String)
+    case unknownWindow(String)
     case noInput
 
     var description: String {
@@ -153,6 +205,8 @@ enum CLIError: Error, CustomStringConvertible {
         case let .unknownProfile(name):
             "Unknown input profile '\(name)'. Run --list-looks to see the profiles too."
         case let .unexpectedArgument(name): "Unexpected argument '\(name)'."
+        case let .unknownWindow(name):
+            "Unknown window shape '\(name)'. Choose from: \(Qualifier.WindowShape.allCases.map(\.rawValue).joined(separator: ", "))."
         case .noInput: "No input file. Run with --help."
         }
     }
@@ -295,6 +349,7 @@ do {
     if options.profile != .standard { state.inputProfile = options.profile }
     if options.inputExposureStops != 0 { state.inputExposureStops = options.inputExposureStops }
     state.lookIntensity = options.lookIntensity
+    if options.qualifier.isEnabled { state.qualifier = options.qualifier }
 
     if let look = options.look {
         guard FilmStock.stock(id: look) != nil else {
@@ -332,6 +387,18 @@ do {
 
     if case let .filmStock(id) = state.look, let stock = FilmStock.stock(id: id) {
         print("Look    \(stock.name) at \(Int(state.lookIntensity))%")
+    }
+
+    if state.qualifier.isRestrictive {
+        var parts: [String] = []
+        if !state.qualifier.selectsAllHues {
+            parts.append("hue \(Int(state.qualifier.hueMin))–\(Int(state.qualifier.hueMax))°")
+        }
+        if state.qualifier.windowShape != .none {
+            parts.append("\(state.qualifier.windowShape.title.lowercased()) window")
+        }
+        if state.qualifier.isInverted { parts.append("inverted") }
+        print("Select  \(parts.joined(separator: ", "))")
     }
 
     let context = RenderContext()
@@ -405,6 +472,12 @@ do {
         base: URL(string: "https://darkroom.ysr.design/")!
     ) {
         print("Share   \(shareURL.absoluteString)")
+        // The share format is the web app's, and it has no field for a
+        // selection. Saying so is better than letting someone send a link that
+        // silently arrives without the mask that made the grade work.
+        if state.qualifier.isRestrictive {
+            print("        (the selection is not carried in a share link)")
+        }
     }
 
 } catch let error as CLIError {

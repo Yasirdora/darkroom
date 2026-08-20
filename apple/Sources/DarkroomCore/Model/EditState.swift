@@ -199,6 +199,14 @@ public struct EditState: Sendable, Equatable, Hashable, Codable {
     /// Look strength as a percentage, `0...100`.
     public var lookIntensity: Double = 100
 
+    /// Restricts the look to a selection of the image.
+    ///
+    /// Applies to the look only, not to the tonal grade. That is the
+    /// TypeScript engine's behaviour and it is the right one: exposure and
+    /// white balance are corrections that should hold across the frame, while
+    /// a film look is a treatment that may reasonably land on part of it.
+    public var qualifier = Qualifier()
+
     public init() {}
 
     /// An untouched grade.

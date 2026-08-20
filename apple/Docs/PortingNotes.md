@@ -473,3 +473,55 @@ So the check compares *normalised cumulative distributions* within 2%, and
 requires every chroma cluster the CPU finds to appear within one bin on the GPU.
 Comparing the shape is what makes the check meaningful rather than merely
 strict — a count comparison would have to be loosened until it proved nothing.
+
+---
+
+## The qualifier
+
+### Masks are data, not colour
+
+The first GPU mask check reported 48% disagreement. The pipeline was fine; the
+*check* rendered the mask through Display P3, applying a display transfer
+function to what are selection weights. A mask value of 0.5 reads back as about
+0.74 that way, and every comparison against it is meaningless.
+
+Reading a mask out requires a linear space. The pipeline itself never had the
+problem — the mask kernel writes and the blend kernel reads in the same working
+space, so the values never leave it. Only inspection needed the care, which is
+exactly the kind of bug that lives in test code and looks like a product bug.
+
+### Two coordinate systems, and only one needs flipping
+
+`dest.coord()` in a Core Image kernel is bottom-up, because that is Core Image's
+convention. `CIContext.render(toBitmap:)` writes rows top-down. The power window
+is authored top-down, as the UI presents it.
+
+So the kernel flips its y — and the readback must *not*. Getting this wrong the
+other way round produced a mask that was correct in the middle of the frame and
+wrong everywhere else.
+
+The failure was diagnosable only because the test image is asymmetric: a
+luminance ramp on top, colour patches below. A pure keyer has no y dependence of
+its own, so a flipped readback compared ramp against patches and disagreed
+loudly. On a uniform test image it would have passed.
+
+**And the window cases hid it.** `ellipseWindow` and `combined` both centre at
+0.5, 0.5, where a window is symmetric about both axes and passes whether or not
+y is flipped. The one configuration nobody would think to question is the one
+that cannot detect the error. `offCentreWindow` was added for that reason, and a
+mutation removing the kernel's flip now fails on it.
+
+### `destCoord()` has no Metal spelling
+
+The CIKL function does not exist in Metal Core Image kernels. The equivalent is
+a `coreimage::destination` parameter, which must come last in the signature.
+
+### The share format has no field for a selection
+
+A grade shared as a URL carries tone, colour, curves, look and input profile —
+not the qualifier, because the web app's format has no field for one and
+inventing a field would break the compatibility the format exists for.
+
+The CLI says so when it prints a link for a grade that uses a selection. Silence
+would mean sending someone a link that arrives without the mask that made the
+grade work, and no way to tell.

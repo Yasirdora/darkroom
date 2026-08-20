@@ -219,7 +219,7 @@ public enum ScopeChecks {
     }
 
     /// Rebuilds the reference pixels as a `CIImage`.
-    static func makeImage(from image: ReferenceVectors.Scopes.Image) -> CIImage? {
+    public static func makeImage(from image: ReferenceVectors.Scopes.Image) -> CIImage? {
         let bytes = image.rgba.map(UInt8.init)
         let sRGB = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
         return CIImage(

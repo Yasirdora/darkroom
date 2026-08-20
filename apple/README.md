@@ -80,10 +80,11 @@ defines a check of its own, so there is exactly one definition of what
 | Render | full pipeline: input profile, geometry, grade, curves, look, spatial |
 | I/O | RAW via `CIRAWFilter`, plus PNG / JPEG / HEIF / 16-bit TIFF export |
 | Scopes | histogram and vectorscope as Metal compute |
-| Conformance | 200 checks, 23,235 comparisons + a cross-language check |
+| Selection | HSL keyer and power windows, GPU masked |
+| Conformance | 220 checks, 60,133 comparisons + a cross-language check |
 
-Phases 1 and 2 render an `EditState` end to end and measure the result. Still to
-come — the qualifier and power windows, then the app itself.
+**Phase 2 is complete.** An `EditState` renders end to end, selectively, and the
+result can be measured. Next is the app itself.
 
 ## Grading from the command line
 
@@ -92,6 +93,7 @@ swift run darkroom photo.jpg --look portra400
 swift run darkroom raw.arw --profile s-log3 --look eterna --exposure 10 -o graded.tif
 swift run darkroom photo.jpg --export-cube grade.cube
 swift run darkroom photo.jpg --look velvia50 --scopes
+swift run darkroom portrait.jpg --look velvia50 --hue-range 340-40 --invert-selection
 swift run darkroom --list-looks
 ```
 

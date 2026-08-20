@@ -32,6 +32,7 @@ do {
             + GradeShareChecks.all()
             + RenderChecks.all()
             + ScopeChecks.all()
+            + QualifierChecks.all()
     )
     print(report.formatted(verbose: verbose))
     exit(report.passed ? 0 : 1)

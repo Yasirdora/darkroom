@@ -49,6 +49,9 @@ import { applyCurves, interpolateCurve, makeDefaultSCurve } from '../../src/lib/
 import { applyAdjustments } from '../../src/lib/processing/adjustments';
 import { computeHistogram } from '../../src/lib/processing/histogram';
 import { computeVectorscope } from '../../src/lib/processing/vectorscope';
+import { buildQualifierMask } from '../../src/lib/processing/qualifiers';
+import { DEFAULT_QUALIFIER } from '../../src/lib/editor/constants';
+import type { QualifierConfig } from '../../src/lib/core/types';
 import { ImageBuffer } from '../../src/lib/core/image-buffer';
 import { DEFAULT_ADJUSTMENTS } from '../../src/lib/editor/constants';
 import type { Adjustments } from '../../src/lib/core/types';
@@ -473,6 +476,65 @@ const dumpScopes = () => {
   };
 };
 
+// ── Qualifier masks ─────────────────────────────────────────────────────────
+
+/** Configurations covering each distinct code path: hue band, a range that
+ *  wraps through zero, saturation and lightness limits, each window shape, and
+ *  inversion. A small image keeps the vectors readable while still exercising
+ *  the separable blur at its edges. */
+const QUALIFIER_CASES: Array<{ name: string; config: Partial<QualifierConfig> }> = [
+  { name: 'warmBand', config: { hueMin: 0, hueMax: 80 } },
+  { name: 'wrappedReds', config: { hueMin: 340, hueMax: 20 } },
+  { name: 'saturatedOnly', config: { satMin: 0.5, satMax: 1 } },
+  { name: 'midtonesOnly', config: { lumMin: 0.3, lumMax: 0.7 } },
+  { name: 'ellipseWindow', config: { spatialType: 'ellipse', spatialWidth: 0.6, spatialHeight: 0.6 } },
+  {
+    name: 'linearWindow',
+    config: { spatialType: 'linear', spatialWidth: 0.8, spatialRotation: 30 },
+  },
+  { name: 'inverted', config: { hueMin: 0, hueMax: 80, invert: true } },
+  // Deliberately off-centre and unrotated. A window centred at 0.5,0.5 is
+  // symmetric about both axes, so it passes whether or not the y axis has been
+  // flipped — the one case that cannot detect an orientation error is the one
+  // most likely to be used as the example. This one can.
+  {
+    name: 'offCentreWindow',
+    config: {
+      spatialType: 'ellipse',
+      spatialX: 0.25, spatialY: 0.2,
+      spatialWidth: 0.4, spatialHeight: 0.3,
+    },
+  },
+  {
+    name: 'combined',
+    config: {
+      hueMin: 0, hueMax: 60, satMin: 0.2,
+      spatialType: 'ellipse', spatialWidth: 0.7, spatialHeight: 0.5,
+    },
+  },
+];
+
+const dumpQualifiers = () => {
+  const source = scopeTestImage();
+
+  return {
+    description:
+      'buildQualifierMask() over the shared test image, one case per distinct code path.',
+    image: { width: source.width, height: source.height },
+    cases: QUALIFIER_CASES.map(({ name, config }) => {
+      const full: QualifierConfig = { ...DEFAULT_QUALIFIER, ...config, enabled: true };
+      const mask = buildQualifierMask(source, full);
+      return {
+        name,
+        config: full,
+        // The full mask, at 64x64 — 4,096 floats per case is large but exact,
+        // and a sampled mask could hide an error in whatever was not sampled.
+        mask: Array.from(mask),
+      };
+    }),
+  };
+};
+
 // ── Grade share payloads ────────────────────────────────────────────────────
 
 /** Grades chosen to exercise every field of the share payload, including the
@@ -564,6 +626,7 @@ const main = () => {
   files['curve-application.json'] = write('curve-application.json', dumpCurveApplication());
   files['adjustments.json'] = write('adjustments.json', dumpAdjustments());
   files['scopes.json'] = write('scopes.json', dumpScopes());
+  files['qualifiers.json'] = write('qualifiers.json', dumpQualifiers());
   files['cube-format.json'] = write('cube-format.json', dumpCubeFormat());
   files['grade-share.json'] = write('grade-share.json', dumpGradeShare());
 

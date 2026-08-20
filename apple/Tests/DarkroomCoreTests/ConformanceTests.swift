@@ -23,6 +23,7 @@ struct ConformanceTests {
     static let outcome: Result<[CheckResult], any Error> = Result {
         try ColorScienceChecks.all() + GradingChecks.all() + FilmChecks.all()
             + GradeShareChecks.all() + RenderChecks.all() + ScopeChecks.all()
+            + QualifierChecks.all()
     }
 
     static var results: [CheckResult] {
