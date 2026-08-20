@@ -108,6 +108,14 @@ public struct DarkroomScene: Scene {
 
             Divider()
 
+            Button("Save Canvas Diagnostic to Desktop") {
+                editor.writeCanvasDiagnostic()
+            }
+            .keyboardShortcut("d", modifiers: [.command, .shift])
+            .disabled(!editor.hasImage)
+
+            Divider()
+
             Button("Copy Share Link") {
                 guard let url = editor.shareURL else { return }
                 NSPasteboard.general.clearContents()

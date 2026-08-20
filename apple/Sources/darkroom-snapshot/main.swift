@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import CoreImage
+import Metal
 import DarkroomCore
 import DarkroomRender
 import DarkroomUI
@@ -161,6 +162,59 @@ func main() throws {
                 print("  canvas-composed.png  \(rep.pixelsWide)×\(rep.pixelsHigh)")
             }
         }
+    }
+
+    // The Metal path, replicated exactly.
+    //
+    // Everything above renders through `makeCGImage`, which is RGBA8 and a
+    // different route to pixels than the app takes. The canvas draws into an
+    // `rgba16Float` drawable tagged Display P3, and a tint reported on screen
+    // has to be looked for *there*, not in a convenient substitute.
+    if editor.hasImage,
+       let device = editor.renderContext.device,
+       let queue = device.makeCommandQueue() {
+
+        let size = 512
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rgba16Float, width: size, height: size, mipmapped: false
+        )
+        descriptor.usage = [.shaderRead, .shaderWrite, .renderTarget]
+        descriptor.storageMode = .shared
+
+        for look in ["none", "portra160", "velvia50"] {
+            editor.update({ state in
+                state.look = look == "none" ? .none : .filmStock(id: look)
+            }, label: look)
+
+            guard let texture = device.makeTexture(descriptor: descriptor),
+                  let graded = editor.renderedImage,
+                  let commands = queue.makeCommandBuffer()
+            else { continue }
+
+            let target = CGRect(x: 0, y: 0, width: size, height: size)
+            editor.renderContext.ciContext.render(
+                CanvasComposition.compose(graded, in: target),
+                to: texture,
+                commandBuffer: commands,
+                bounds: target,
+                colorSpace: RenderContext.outputColorSpace
+            )
+            commands.commit()
+            commands.waitUntilCompleted()
+
+            // Read a corner straight out of the drawable, as half-floats.
+            var halves = [UInt16](repeating: 0, count: 4)
+            texture.getBytes(
+                &halves, bytesPerRow: 8,
+                from: MTLRegionMake2D(2, 2, 1, 1), mipmapLevel: 0
+            )
+            let corner = halves.map { Float(Float16(bitPattern: $0)) }
+            print(String(
+                format: "  metal corner [%@]: %.4f %.4f %.4f (P3 linear-ish)",
+                look, corner[0], corner[1], corner[2]
+            ))
+        }
+        editor.update({ $0.look = .filmStock(id: "portra400") }, label: "reset")
     }
 
     // The empty state deserves its own look. It is the first thing anyone sees,

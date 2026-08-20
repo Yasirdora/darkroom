@@ -289,6 +289,40 @@ public final class Editor {
         }
     }
 
+    /// Writes exactly what the canvas is drawing to a PNG on the Desktop.
+    ///
+    /// A diagnostic, and it exists because of a real limitation: the person
+    /// reporting a rendering problem is looking at a Metal drawable that cannot
+    /// be measured from anywhere else, and a screenshot arrives recompressed and
+    /// colour-managed by whatever took it. This writes the composed canvas —
+    /// ground and photograph together, through the same code the window uses —
+    /// so a reported tint can be read as numbers instead of described.
+    @discardableResult
+    public func writeCanvasDiagnostic() -> URL? {
+        guard let graded = renderedImage else { return nil }
+
+        let canvas = CGRect(x: 0, y: 0, width: 1200, height: 900)
+        let composed = CanvasComposition.compose(graded, in: canvas)
+        guard let image = renderContext.makeCGImage(composed, in: canvas) else { return nil }
+
+        let name = "Darkroom canvas \(state.look.title).png"
+        let url = FileManager.default
+            .urls(for: .desktopDirectory, in: .userDomainMask).first?
+            .appending(path: name)
+        guard let url else { return nil }
+
+        let rep = NSBitmapImageRep(cgImage: image)
+        guard let png = rep.representation(using: .png, properties: [:]) else { return nil }
+
+        do {
+            try png.write(to: url)
+            return url
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
     /// A shareable link for the current grade, if it differs from neutral.
     public var shareURL: URL? {
         GradeShare.url(for: state, base: URL(string: "https://darkroom.ysr.design/")!)
