@@ -15,6 +15,9 @@ let package = Package(
         .library(name: "DarkroomCore", targets: ["DarkroomCore"]),
         .library(name: "DarkroomRender", targets: ["DarkroomRender"]),
         .library(name: "DarkroomConformance", targets: ["DarkroomConformance"]),
+        .library(name: "DarkroomUI", targets: ["DarkroomUI"]),
+        .executable(name: "darkroom-app", targets: ["darkroom-app"]),
+        .executable(name: "darkroom-snapshot", targets: ["darkroom-snapshot"]),
         .executable(name: "darkroom", targets: ["darkroom"]),
         .executable(name: "darkroom-conformance", targets: ["darkroom-conformance"]),
     ],
@@ -53,6 +56,30 @@ let package = Package(
         .target(
             name: "DarkroomConformance",
             dependencies: ["DarkroomCore", "DarkroomRender"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        // The app's views and view model, as a library rather than inside the
+        // executable — an executable target cannot be imported, and the
+        // snapshot tool below needs to render these views to inspect them.
+        .target(
+            name: "DarkroomUI",
+            dependencies: ["DarkroomCore", "DarkroomRender"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        // The app itself: a thin @main over DarkroomUI.
+        .executableTarget(
+            name: "darkroom-app",
+            dependencies: ["DarkroomUI"],
+            swiftSettings: [.swiftLanguageMode(.v6)]
+        ),
+        // Renders views to PNG without a window server.
+        //
+        // Screen capture is unavailable in this environment, so the running app
+        // cannot be photographed. Rendering the same views offscreen is how the
+        // interface gets looked at rather than merely compiled.
+        .executableTarget(
+            name: "darkroom-snapshot",
+            dependencies: ["DarkroomUI"],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         // Grades a photograph from the command line. Exists ahead of the app
