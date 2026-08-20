@@ -492,11 +492,16 @@ public enum RenderChecks {
 
         var cases: [(name: String, image: CIImage)] = [("ungraded", photograph)]
 
-        for id in ["portra400", "velvia50", "trix400", "tealOrange"] {
-            guard let stock = FilmStock.stock(id: id) else { continue }
+        // Every stock, not a sample of them. A sample is how this check missed
+        // the bug it was written for: the four looks chosen happened to be clean
+        // and the one a user tried was not.
+        for stock in FilmStock.allStocks {
             var state = EditState()
-            state.look = .filmStock(id: id)
-            cases.append(("look \(id)", GradePipeline.image(from: photograph, applying: state)))
+            state.look = .filmStock(id: stock.id)
+            cases.append((
+                "look \(stock.id)",
+                GradePipeline.image(from: photograph, applying: state)
+            ))
         }
 
         var graded = EditState()

@@ -62,6 +62,46 @@ public enum GradePipeline {
         return result
     }
 
+    /// The extent after each stage, for diagnosing a render problem in the field.
+    ///
+    /// A rendering fault reported from use is usually a geometry fault wearing a
+    /// colour disguise — a stage handing back an infinite extent covers the
+    /// canvas and looks like a tint. Reading the extents in order says which
+    /// stage did it, which is not otherwise knowable from outside the app.
+    public static func extentTrace(
+        from image: CIImage,
+        applying state: EditState,
+        includeCrop: Bool = true
+    ) -> [(stage: String, extent: CGRect)] {
+        var trace: [(String, CGRect)] = [("source", image.extent)]
+        var result = image
+
+        result = InputProfileFilter.apply(state, to: result)
+        trace.append(("input profile", result.extent))
+
+        result = applyGeometry(state.transform, to: result, includeCrop: includeCrop)
+        trace.append(("geometry", result.extent))
+
+        result = GradeFilter.applyColorStage(state.adjustments, to: result)
+        trace.append(("grade", result.extent))
+
+        result = CurveFilter.apply(state.curves, to: result)
+        trace.append(("curves", result.extent))
+
+        if let cube = LookFilter.cube(for: state.look) {
+            let corrected = result
+            result = LookFilter.apply(cube, to: result, intensity: state.lookIntensity)
+            trace.append(("look", result.extent))
+            result = QualifierFilter.apply(state.qualifier, graded: result, source: corrected)
+            trace.append(("qualifier", result.extent))
+        }
+
+        result = GradeFilter.applySpatialStages(state.adjustments, to: result)
+        trace.append(("spatial", result.extent))
+
+        return trace.map { (stage: $0.0, extent: $0.1) }
+    }
+
     /// The image with no grade applied, for before/after comparison.
     ///
     /// Deliberately *not* the raw file. It carries the input profile and

@@ -136,7 +136,7 @@ func main() throws {
     // `CanvasComposition` actually produces, so the surround around a graded
     // image can be inspected rather than assumed.
     // Rendered for several looks, so the surround can be compared across them.
-    for look in ["portra160", "velvia50", "eterna"] {
+    for look in ["portra160", "magicGolden", "magicNatural", "magicGlow"] {
         editor.update({ $0.look = .filmStock(id: look) }, label: look)
         guard let graded = editor.renderedImage else { continue }
         let canvas = CGRect(x: 0, y: 0, width: 900, height: 700)

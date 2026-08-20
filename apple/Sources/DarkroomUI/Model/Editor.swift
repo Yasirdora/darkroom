@@ -316,11 +316,63 @@ public final class Editor {
 
         do {
             try png.write(to: url)
+            try writeDiagnosticReport(alongside: url, canvas: canvas)
             return url
         } catch {
             errorMessage = error.localizedDescription
             return nil
         }
+    }
+
+    /// Writes what the picture cannot show: extents, state, and sampled pixels.
+    ///
+    /// The image alone proves a tint exists. This says *where it enters* — a
+    /// stage that hands back an infinite extent covers the canvas and looks
+    /// exactly like a tint, and reading the extents in order names the stage.
+    private func writeDiagnosticReport(alongside url: URL, canvas: CGRect) throws {
+        guard let sourceImage else { return }
+
+        var lines: [String] = [
+            "Darkroom canvas diagnostic",
+            "",
+            "file          \(sourceURL?.lastPathComponent ?? "—")",
+            "pixels        \(Int(pixelSize.width)) × \(Int(pixelSize.height))\(isRAW ? "  RAW" : "")",
+            "canvas        \(Int(canvas.width)) × \(Int(canvas.height))",
+            "",
+            "GRADE",
+            "input profile \(state.inputProfile.rawValue)",
+            "input EV      \(state.inputExposureStops)",
+            "look          \(state.look.title) at \(Int(state.lookIntensity))%",
+            "qualifier     \(state.qualifier.isRestrictive ? "active" : "off")",
+        ]
+
+        let moved = Adjustments.Key.allCases.filter { state.adjustments[$0] != 0 }
+        lines.append(
+            "adjustments   " + (moved.isEmpty
+                ? "all neutral"
+                : moved.map { "\($0.rawValue)=\(state.adjustments[$0])" }.joined(separator: " "))
+        )
+
+        lines.append("")
+        lines.append("EXTENT AFTER EACH STAGE")
+        for step in GradePipeline.extentTrace(from: sourceImage, applying: state) {
+            let extent = step.extent
+            let description = extent.isInfinite
+                ? "INFINITE  ← this stage covers the canvas"
+                : "\(Int(extent.origin.x)), \(Int(extent.origin.y))  \(Int(extent.width)) × \(Int(extent.height))"
+            lines.append("  \(step.stage.padding(toLength: 14, withPad: " ", startingAt: 0))\(description)")
+        }
+
+        lines.append("")
+        lines.append("SURROUND")
+        lines.append("  expected      \(CanvasComposition.surround)")
+
+        let report = lines.joined(separator: "\n") + "\n"
+        try report.write(
+            to: url.deletingPathExtension().appendingPathExtension("txt"),
+            atomically: true,
+            encoding: .utf8
+        )
     }
 
     /// A shareable link for the current grade, if it differs from neutral.
