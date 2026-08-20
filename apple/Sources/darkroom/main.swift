@@ -24,6 +24,7 @@ struct Options {
     var quality = 0.92
     var gradeURL: String?
     var exportCube: URL?
+    var showScopes = false
     var listLooks = false
     var showHelp = false
 }
@@ -48,6 +49,7 @@ OPTIONS
 
       --grade <url|payload> Apply a grade shared from the web app
       --export-cube <path>  Also write the grade as a .cube LUT
+      --scopes              Print a histogram and vectorscope of the result
 
 ADJUSTMENTS (each -100 to 100 unless noted)
       --exposure, --brightness, --contrast
@@ -109,6 +111,7 @@ func parse(_ arguments: [String]) throws -> Options {
         case "--grade": options.gradeURL = try next(argument)
         case "--export-cube": options.exportCube = URL(filePath: try next(argument))
         case "--s-curve": options.curves.master = .defaultS
+        case "--scopes": options.showScopes = true
 
         default:
             // Adjustments share one shape, so they are matched by name rather
@@ -173,6 +176,80 @@ func listLooks() {
             print("    \(stock.id.padding(toLength: 20, withPad: " ", startingAt: 0)) \(stock.summary)")
         }
     }
+}
+
+/// Draws a histogram as text.
+///
+/// Rough by nature — a terminal has no subpixels — but enough to see clipping,
+/// crushed blacks and where an image's tonal weight sits, which is most of what
+/// a histogram is read for.
+func drawHistogram(_ histogram: Histogram) {
+    let columns = 64
+    let rows = 8
+    let blocks = Array(" ▁▂▃▄▅▆▇█")
+
+    // Bins are grouped into columns by their maximum rather than their mean: a
+    // single-bin spike at clipping is exactly what a histogram must not hide.
+    func column(_ bins: [UInt32], _ index: Int) -> Double {
+        let width = Histogram.binCount / columns
+        let slice = bins[(index * width)..<((index + 1) * width)]
+        return Double(slice.max() ?? 0)
+    }
+
+    let peak = Double(histogram.peak)
+    guard peak > 0 else { return }
+
+    print("\nHISTOGRAM")
+    for (name, bins) in [
+        ("L", histogram.luminance), ("R", histogram.red),
+        ("G", histogram.green), ("B", histogram.blue),
+    ] {
+        var line = ""
+        for index in 0..<columns {
+            // Square root, not linear: a photograph's histogram is dominated by
+            // its midtones, and a linear scale flattens the shadow and highlight
+            // detail that actually needs judging.
+            let normalized = (column(bins, index) / peak).squareRoot()
+            let level = Int((normalized * Double(rows)).rounded())
+            line.append(blocks[min(level, blocks.count - 1)])
+        }
+        print("  \(name) │\(line)│")
+    }
+    print("     └\(String(repeating: "─", count: columns))┘")
+    print("      black\(String(repeating: " ", count: columns - 11))white")
+}
+
+/// Draws a vectorscope as text, with the neutral axes marked.
+func drawVectorscope(_ scope: Vectorscope) {
+    let size = 25
+    let blocks = Array(" ·░▒▓█")
+    guard scope.peak > 0 else { return }
+
+    print("\nVECTORSCOPE")
+    let scale = scope.size / size
+    for row in 0..<size {
+        var line = ""
+        for column in 0..<size {
+            var total: UInt32 = 0
+            for y in (row * scale)..<min((row + 1) * scale, scope.size) {
+                for x in (column * scale)..<min((column + 1) * scale, scope.size) {
+                    total += scope.bins[y * scope.size + x]
+                }
+            }
+            if total == 0 {
+                // Centre lines mark neutral, so a cast reads as a cluster
+                // sitting off-axis rather than as a shape with no reference.
+                let isCentre = row == size / 2 || column == size / 2
+                line.append(isCentre ? "+" : " ")
+            } else {
+                let normalized = (Double(total) / Double(scope.peak)).squareRoot()
+                let level = Int((normalized * Double(blocks.count - 1)).rounded())
+                line.append(blocks[max(1, min(level, blocks.count - 1))])
+            }
+        }
+        print("  │\(line)│")
+    }
+    print("  neutral at centre · distance from it is saturation")
 }
 
 func defaultOutput(for input: URL, format: ImageExporter.Format) -> URL {
@@ -310,6 +387,17 @@ do {
         try CubeFile.string(from: cube, title: title, comments: comments)
             .write(to: cubeURL, atomically: true, encoding: .utf8)
         print("Wrote   \(cubeURL.lastPathComponent)  64³ .cube")
+    }
+
+    if options.showScopes {
+        do {
+            let calculator = try ScopeCalculator()
+            let measured = calculator.measure(graded, in: context)
+            drawHistogram(measured.histogram)
+            drawVectorscope(measured.vectorscope)
+        } catch {
+            FileHandle.standardError.write(Data("Scopes unavailable: \(error)\n".utf8))
+        }
     }
 
     if let shareURL = GradeShare.url(

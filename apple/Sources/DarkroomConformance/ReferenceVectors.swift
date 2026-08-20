@@ -91,6 +91,32 @@ public enum ReferenceVectors {
         }
     }
 
+    public struct Scopes: Decodable, Sendable {
+        public let image: Image
+        public let histogram: HistogramData
+        public let vectorscope: VectorscopeData
+
+        public struct Image: Decodable, Sendable {
+            public let width: Int
+            public let height: Int
+            public let rgba: [Int]
+        }
+
+        public struct HistogramData: Decodable, Sendable {
+            public let r: [UInt32]
+            public let g: [UInt32]
+            public let b: [UInt32]
+            public let luminance: [UInt32]
+            public let peak: UInt32
+        }
+
+        public struct VectorscopeData: Decodable, Sendable {
+            public let size: Int
+            public let peak: UInt32
+            public let bins: [UInt32]
+        }
+    }
+
     public struct FilmStocks: Decodable, Sendable {
         public let lutSize: Int
         public let latticeIndices: [Int]
@@ -165,6 +191,7 @@ public enum ReferenceVectors {
     public static func gradeShares() throws -> GradeShares { try load(GradeShares.self, from: "grade-share.json") }
     public static func curveApplication() throws -> CurveApplication { try load(CurveApplication.self, from: "curve-application.json") }
     public static func adjustments() throws -> AdjustmentVectors { try load(AdjustmentVectors.self, from: "adjustments.json") }
+    public static func scopes() throws -> Scopes { try load(Scopes.self, from: "scopes.json") }
 
     public enum ReferenceError: Error, CustomStringConvertible {
         case missing(file: String, expectedAt: String)

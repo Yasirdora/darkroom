@@ -22,7 +22,7 @@ struct ConformanceTests {
     /// consistent across cases.
     static let outcome: Result<[CheckResult], any Error> = Result {
         try ColorScienceChecks.all() + GradingChecks.all() + FilmChecks.all()
-            + GradeShareChecks.all() + RenderChecks.all()
+            + GradeShareChecks.all() + RenderChecks.all() + ScopeChecks.all()
     }
 
     static var results: [CheckResult] {

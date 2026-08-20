@@ -47,6 +47,8 @@ import {
 } from '../../src/lib/processing/input-profile';
 import { applyCurves, interpolateCurve, makeDefaultSCurve } from '../../src/lib/processing/curves';
 import { applyAdjustments } from '../../src/lib/processing/adjustments';
+import { computeHistogram } from '../../src/lib/processing/histogram';
+import { computeVectorscope } from '../../src/lib/processing/vectorscope';
 import { ImageBuffer } from '../../src/lib/core/image-buffer';
 import { DEFAULT_ADJUSTMENTS } from '../../src/lib/editor/constants';
 import type { Adjustments } from '../../src/lib/core/types';
@@ -402,6 +404,75 @@ const dumpAdjustments = () => ({
   }),
 });
 
+// ── Scopes ──────────────────────────────────────────────────────────────────
+
+/** A deterministic test image with a known distribution: a luminance ramp, the
+ *  six Rec.709 primaries and secondaries, neutrals, and skin-adjacent tones.
+ *  Built rather than loaded so the vectors reproduce from a clean checkout. */
+const scopeTestImage = (): ImageBuffer => {
+  const width = 64;
+  const height = 64;
+  const data = new Uint8ClampedArray(width * height * 4);
+
+  const patches: Array<[number, number, number]> = [
+    [255, 0, 0], [0, 255, 0], [0, 0, 255],
+    [0, 255, 255], [255, 0, 255], [255, 255, 0],
+    [200, 150, 120], [120, 90, 70],
+  ];
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      if (y < 32) {
+        // Top half: a horizontal luminance ramp.
+        const v = Math.round((x / (width - 1)) * 255);
+        data[index] = v;
+        data[index + 1] = v;
+        data[index + 2] = v;
+      } else {
+        // Bottom half: colour patches, eight across.
+        const [r, g, b] = patches[Math.floor(x / 8) % patches.length];
+        data[index] = r;
+        data[index + 1] = g;
+        data[index + 2] = b;
+      }
+      data[index + 3] = 255;
+    }
+  }
+
+  return new ImageBuffer(width, height, data);
+};
+
+const dumpScopes = () => {
+  const source = scopeTestImage();
+  const histogram = computeHistogram(source);
+  const vectorscope = computeVectorscope(source);
+
+  return {
+    description:
+      'Histogram and vectorscope of a deterministic 64x64 test image — a luminance ramp over primaries, secondaries and skin tones.',
+    image: {
+      width: source.width,
+      height: source.height,
+      // The pixels themselves, so the Swift side measures the same image
+      // rather than rebuilding it and hoping the two constructions agree.
+      rgba: Array.from(source.data),
+    },
+    histogram: {
+      r: Array.from(histogram.r),
+      g: Array.from(histogram.g),
+      b: Array.from(histogram.b),
+      luminance: Array.from(histogram.luminance),
+      peak: histogram.peak,
+    },
+    vectorscope: {
+      size: vectorscope.size,
+      peak: vectorscope.peak,
+      bins: Array.from(vectorscope.bins),
+    },
+  };
+};
+
 // ── Grade share payloads ────────────────────────────────────────────────────
 
 /** Grades chosen to exercise every field of the share payload, including the
@@ -492,6 +563,7 @@ const main = () => {
   files['film-stocks.json'] = write('film-stocks.json', dumpFilmStocks());
   files['curve-application.json'] = write('curve-application.json', dumpCurveApplication());
   files['adjustments.json'] = write('adjustments.json', dumpAdjustments());
+  files['scopes.json'] = write('scopes.json', dumpScopes());
   files['cube-format.json'] = write('cube-format.json', dumpCubeFormat());
   files['grade-share.json'] = write('grade-share.json', dumpGradeShare());
 

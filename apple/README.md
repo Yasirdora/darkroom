@@ -79,10 +79,11 @@ defines a check of its own, so there is exactly one definition of what
 | Model | `EditState`, `Adjustments`, `Transform`, grade-share codec |
 | Render | full pipeline: input profile, geometry, grade, curves, look, spatial |
 | I/O | RAW via `CIRAWFilter`, plus PNG / JPEG / HEIF / 16-bit TIFF export |
-| Conformance | 194 checks, 23,208 comparisons + a cross-language check |
+| Scopes | histogram and vectorscope as Metal compute |
+| Conformance | 200 checks, 23,235 comparisons + a cross-language check |
 
-Phases 1 and 2 render an `EditState` end to end. Still to come — the scopes as
-Metal compute, the qualifier and power windows, and then the app itself.
+Phases 1 and 2 render an `EditState` end to end and measure the result. Still to
+come — the qualifier and power windows, then the app itself.
 
 ## Grading from the command line
 
@@ -90,6 +91,7 @@ Metal compute, the qualifier and power windows, and then the app itself.
 swift run darkroom photo.jpg --look portra400
 swift run darkroom raw.arw --profile s-log3 --look eterna --exposure 10 -o graded.tif
 swift run darkroom photo.jpg --export-cube grade.cube
+swift run darkroom photo.jpg --look velvia50 --scopes
 swift run darkroom --list-looks
 ```
 

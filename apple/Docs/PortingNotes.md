@@ -423,3 +423,53 @@ An implementation checked only against its own port is not checked. The layered
 chain — TypeScript defines it, `ColorGrade` is checked against TypeScript, the
 kernel is checked against `ColorGrade` — is what makes a shared fault visible,
 and it is worth the extra link.
+
+---
+
+## The scopes
+
+Three Metal specifics cost time and are worth writing down.
+
+**`constant` at file scope means something else.** A bare `constant uint x = 256;`
+outside a function declares a *function constant*, specialised at pipeline
+creation, and the compiler then rejects it alongside ordinary kernel inputs with
+a message about scalar and vector types. `constexpr constant` is the ordinary
+compile-time constant.
+
+**`half` is a reserved type name.** Using it as a variable produces a cascade of
+parse errors several lines below the actual one.
+
+**Attribute dimensionality must agree.** A kernel taking `uint2
+[[thread_position_in_grid]]` must take `uint2 [[threads_per_threadgroup]]` too;
+mixing a vector position with a scalar group size is rejected, again by way of
+the scalar-or-vector message.
+
+### Where the accumulation happens is the whole design
+
+The histogram stages its 1,024 counters in threadgroup memory and merges once
+per group. The vectorscope cannot — 96×96 is 9,216 counters, 36 KB, past the
+32 KB a threadgroup gets — so it uses device atomics directly.
+
+That asymmetry is the reason the two kernels look different, and it is worth
+preserving deliberately: incrementing device memory per pixel is correct and
+roughly an order of magnitude slower, because every thread on the GPU
+serialises through the same few cache lines.
+
+### Scopes are measured in sRGB, not the working space
+
+The render context works in linear light. A histogram of linear light is
+technically accurate and useless: almost everything piles into the bottom few
+bins, because that is what linear light does. Scopes describe what the viewer
+sees, so they are measured after the display encode.
+
+### The GPU and CPU scopes are compared by shape, not by count
+
+They cannot match exactly, by design. The GPU path measures a rendered image
+through a colour-managed context at reduced size; the CPU reference samples
+every fourth pixel of the original. Both are correct descriptions of the same
+distribution.
+
+So the check compares *normalised cumulative distributions* within 2%, and
+requires every chroma cluster the CPU finds to appear within one bin on the GPU.
+Comparing the shape is what makes the check meaningful rather than merely
+strict — a count comparison would have to be loosened until it proved nothing.
