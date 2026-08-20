@@ -210,13 +210,8 @@ public struct CanvasArea: View {
             Spacer()
             HStack {
                 Spacer()
-                HStack(spacing: 2) {
-                    Button { editor.zoomOut() } label: {
-                        Image(systemName: "minus").font(.system(size: 10, weight: .semibold))
-                            .frame(width: 22, height: 20)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Zoom out")
+                HStack(spacing: 0) {
+                    zoomButton("minus", label: "Zoom out") { editor.zoomOut() }
 
                     Button {
                         editor.zoom == nil ? editor.zoomToActualSize() : editor.zoomToFit()
@@ -224,18 +219,16 @@ public struct CanvasArea: View {
                         Text(editor.zoomDescription)
                             .font(.system(size: 10, weight: .medium, design: .rounded))
                             .monospacedDigit()
-                            .frame(width: 40, height: 20)
+                            .frame(width: 46, height: 24)
+                            // Without this the clickable region is the glyphs
+                            // themselves. See `zoomButton`.
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help(editor.zoom == nil ? "Zoom to 100%" : "Fit to window")
                     .accessibilityLabel("Zoom \(editor.zoomDescription)")
 
-                    Button { editor.zoomIn() } label: {
-                        Image(systemName: "plus").font(.system(size: 10, weight: .semibold))
-                            .frame(width: 22, height: 20)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Zoom in")
+                    zoomButton("plus", label: "Zoom in") { editor.zoomIn() }
                 }
                 .foregroundStyle(editor.zoom == nil ? .secondary : .primary)
                 .background(.regularMaterial, in: Capsule())
@@ -243,6 +236,33 @@ public struct CanvasArea: View {
                 .padding(12)
             }
         }
+        // The container must not swallow clicks meant for the canvas beneath it.
+        // Spacers fill the whole canvas area, and without this the whole ZStack
+        // layer would be hit-testable rather than just the capsule.
+        .allowsHitTesting(true)
+    }
+
+    /// One of the zoom stepper buttons.
+    ///
+    /// `.contentShape(Rectangle())` is the point of this existing, and its
+    /// absence is why the control felt unresponsive. With `.buttonStyle(.plain)`
+    /// the hit region is the label's *rendered shape*, not its frame — for an
+    /// SF Symbol "minus" that is a bar a few points tall, so a click landed only
+    /// if it hit the stroke. `.frame` sets layout size and does not touch hit
+    /// testing; the content shape does.
+    private func zoomButton(
+        _ symbol: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .semibold))
+                .frame(width: 26, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     private var comparisonBadge: some View {

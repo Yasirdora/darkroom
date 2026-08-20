@@ -133,6 +133,11 @@ public struct InspectorView: View {
                 .font(.system(size: 11))
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+                // `.plain` makes the hit region the drawn glyphs, so without
+                // this only the letter strokes themselves are clickable.
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .contentShape(Rectangle())
                 .disabled(editor.state.isNeutral)
         }
         .padding(.horizontal, 14)

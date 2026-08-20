@@ -24,20 +24,36 @@ public struct CurveEditor: View {
     /// Which channel is being edited.
     @State private var channel: Channel = .master
 
-    /// Index of the point being dragged, if any.
-    @State private var dragging: Int?
+    /// Bookkeeping for the gesture in progress.
+    ///
+    /// A reference type held in `@State`, and that is deliberate: updating a
+    /// `@State` *value* during `onChanged` re-evaluates the body on every
+    /// pointer move, which rebuilds the very gesture that is running. Mutating
+    /// a class instance does not invalidate anything, so the gesture survives
+    /// its own updates.
+    @State private var session = DragSession()
 
-    /// Index of the selected point, which the Delete key removes.
+    final class DragSession {
+        /// The decision-making lives in `DarkroomCore`, where it can be driven
+        /// through every sequence without a screen. This view only relays
+        /// pointer positions to it and applies what comes back.
+        var gesture = CurveGesture()
+    }
+
+    /// Index of the selected point. Changes only at the start and end of a
+    /// gesture, so redrawing for it costs nothing.
     @State private var selected: Int?
 
-    /// Whether the current gesture has been classified yet.
-    @State private var hasBegun = false
-
-    /// Whether the current gesture has moved far enough to be a drag.
-    @State private var hasMoved = false
-
-    /// Movement below this still counts as a click.
-    private static let clickSlop: Double = 2
+    /// The plot's side length.
+    ///
+    /// A constant rather than a `GeometryReader` measurement. The inspector is a
+    /// fixed 290 points wide with 16 either side, so the plot is always 258 —
+    /// and a `GeometryReader` here was actively harmful: every point moved
+    /// mutates the editor, which invalidates the window body, re-lays out the
+    /// reader and rebuilds the canvas and its gesture *while the drag is still
+    /// running*. A fixed frame keeps the view identity stable, so an in-flight
+    /// gesture is not torn down underneath itself.
+    static let plotSize: Double = 258
 
     public init(editor: Editor) {
         self.editor = editor
@@ -76,6 +92,12 @@ public struct CurveEditor: View {
             plot
             footer
         }
+        // Focus lives on the container, not the canvas. Attaching `.focusable()`
+        // to the canvas made it compete with the drag for the first click.
+        .focusable()
+        .focusEffectDisabled()
+        .onKeyPress(.delete) { removeSelected() }
+        .onKeyPress(.deleteForward) { removeSelected() }
     }
 
     private var channelPicker: some View {
@@ -88,7 +110,7 @@ public struct CurveEditor: View {
                     Text(option.title)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 5)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -126,6 +148,16 @@ public struct CurveEditor: View {
 
             Spacer()
 
+            // A visible way to remove a point, not only a key. Delete works, but
+            // a keyboard-only affordance is one nobody discovers.
+            if let index = selected, isRemovable(index) {
+                Button("Remove Point") { _ = removeSelected() }
+                    .font(.system(size: 10))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    .contentShape(Rectangle())
+            }
+
             Button("Reset") {
                 editor.update({ setCurve(nil, in: &$0) }, label: "Reset Curve")
                 selected = nil
@@ -133,6 +165,7 @@ public struct CurveEditor: View {
             .font(.system(size: 10))
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
+            .contentShape(Rectangle())
             .disabled(currentCurve == nil)
         }
         .padding(.horizontal, 16)
@@ -141,41 +174,25 @@ public struct CurveEditor: View {
     // MARK: - Plot
 
     private var plot: some View {
-        GeometryReader { geometry in
-            let size = min(geometry.size.width, geometry.size.height)
-            let rect = CGRect(x: 0, y: 0, width: size, height: size)
+        let rect = CGRect(x: 0, y: 0, width: Self.plotSize, height: Self.plotSize)
 
-            Canvas { context, _ in
-                drawBackground(context: context, in: rect)
-                drawHistogram(context: context, in: rect)
-                drawIdentity(context: context, in: rect)
-                drawCurve(context: context, in: rect)
-                drawPoints(context: context, in: rect)
-            }
-            .frame(width: size, height: size)
-            .contentShape(Rectangle())
-            // ONE gesture, at high priority, and both parts of that matter.
-            //
-            // High priority because the plot sits inside the inspector's
-            // ScrollView, which otherwise claims every vertical drag — dragging
-            // a point scrolled the panel instead of moving the point.
-            //
-            // One gesture because a `DragGesture(minimumDistance: 0)` and an
-            // `onTapGesture` on the same view do not coexist: the drag wins
-            // arbitration and the tap never fires, so points could not be
-            // added. Tap and drag are told apart here by whether the pointer
-            // moved, exactly as `AdjustmentSlider` does it.
-            .highPriorityGesture(plotGesture(in: rect))
-            // Focusable so the plot can take key events at all. Without it
-            // Delete goes to whatever else holds focus, and a selected point
-            // cannot be removed.
-            .focusable()
-            .focusEffectDisabled()
-            .onKeyPress(.delete) { removeSelected() }
-            .onKeyPress(.deleteForward) { removeSelected() }
+        return Canvas { context, _ in
+            drawBackground(context: context, in: rect)
+            drawHistogram(context: context, in: rect)
+            drawIdentity(context: context, in: rect)
+            drawCurve(context: context, in: rect)
+            drawPoints(context: context, in: rect)
         }
-        .aspectRatio(1, contentMode: .fit)
-        .padding(.horizontal, 16)
+        .frame(width: Self.plotSize, height: Self.plotSize)
+        // The whole square is clickable, not just what has been drawn on it.
+        // Without this a click only registers where a stroke happens to be.
+        .contentShape(Rectangle())
+        // One gesture, which tells a tap from a drag by whether the pointer
+        // moved. A `DragGesture(minimumDistance: 0)` and an `onTapGesture` on
+        // the same view do not coexist — the drag wins arbitration and the tap
+        // never fires — so both behaviours come from this one.
+        .gesture(plotGesture(in: rect))
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(channelName(channel)) tone curve")
         .accessibilityValue(
@@ -285,7 +302,12 @@ public struct CurveEditor: View {
     private func drawPoints(context: GraphicsContext, in rect: CGRect) {
         for (index, point) in points.enumerated() {
             let centre = CGPoint(x: rect.width * point.x, y: rect.height * (1 - point.y))
-            let isActive = dragging == index || selected == index
+            // Only `selected` drives this. The dragged index lives in the
+            // gesture session, which deliberately does not invalidate the view
+            // — reading it here would draw from state the redraw cannot see
+            // change. Selection is set when a drag begins, so the highlight is
+            // correct either way.
+            let isActive = selected == index
             let radius: Double = isActive ? 5.5 : 4
 
             let dot = Path(ellipseIn: CGRect(
@@ -324,50 +346,41 @@ public struct CurveEditor: View {
 
     private func plotGesture(in rect: CGRect) -> some Gesture {
         DragGesture(minimumDistance: 0)
-            .onChanged { gesture in
-                if !hasBegun {
-                    hasBegun = true
-                    dragging = nearestPoint(to: gesture.startLocation, in: rect)
-                    if dragging != nil {
-                        selected = dragging
-                        editor.beginInteraction(label: "Tone Curve")
-                    }
-                }
-
-                // A press that has not moved is still potentially a click. Only
-                // once it moves past the slop is it committed to being a drag.
-                if abs(gesture.translation.width) > Self.clickSlop
-                    || abs(gesture.translation.height) > Self.clickSlop {
-                    hasMoved = true
-                }
-
-                guard let index = dragging else { return }
-                movePoint(index, to: gesture.location, in: rect)
+            .onChanged { value in
+                apply(session.gesture.changed(
+                    start: PlotPoint(x: value.startLocation.x, y: value.startLocation.y),
+                    current: PlotPoint(x: value.location.x, y: value.location.y),
+                    in: points,
+                    size: rect.width
+                ), in: rect)
             }
-            .onEnded { gesture in
-                let wasClick = !hasMoved
-                let grabbed = dragging
-
-                if grabbed != nil { editor.endInteraction() }
-                dragging = nil
-                hasBegun = false
-                hasMoved = false
-
-                // A click on empty plot adds a point; a click on an existing one
-                // selects it, which `nearestPoint` already resolved.
-                if wasClick, grabbed == nil {
-                    addPoint(at: gesture.location, in: rect)
-                }
+            .onEnded { value in
+                apply(session.gesture.ended(
+                    at: PlotPoint(x: value.location.x, y: value.location.y)
+                ), in: rect)
             }
     }
 
-    /// The point under the cursor, if one is close enough to grab.
-    private func nearestPoint(to location: CGPoint, in rect: CGRect) -> Int? {
-        CurveEditing.point(
-            near: (x: Double(location.x), y: Double(location.y)),
-            in: points,
-            size: Double(rect.width)
-        )
+    /// Carries out what the gesture decided.
+    private func apply(_ effects: [CurveGesture.Effect], in rect: CGRect) {
+        for effect in effects {
+            switch effect {
+            case .select(let index):
+                selected = index
+
+            case .beginInteraction:
+                editor.beginInteraction(label: "Tone Curve")
+
+            case .move(let index, let location):
+                movePoint(index, to: CGPoint(x: location.x, y: location.y), in: rect)
+
+            case .add(let location):
+                addPoint(at: CGPoint(x: location.x, y: location.y), in: rect)
+
+            case .endInteraction:
+                editor.endInteraction()
+            }
+        }
     }
 
     private func movePoint(_ index: Int, to location: CGPoint, in rect: CGRect) {

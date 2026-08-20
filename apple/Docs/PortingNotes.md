@@ -821,3 +821,59 @@ density rather than as a continuous alpha ramp across two-pixel cells.
 **The general lesson:** with a single observable model, an unrelated property
 change redraws everything observing it. Anything expensive to draw needs to be
 able to say it has not changed.
+
+## Hit testing is not layout
+
+`.buttonStyle(.plain)` makes a button's hit region the *rendered shape of its
+label*, not its frame. For an SF Symbol like `minus` that is a stroke a couple of
+points tall, so a button laid out at 26×24 accepts clicks in about 4% of the area
+it appears to occupy. `.frame()` does not fix this — frames set layout size and
+have no bearing on hit testing. `.contentShape(Rectangle())` does.
+
+This shipped three separate times: the zoom stepper, the curve editor's channel
+picker, and the inspector's Reset. Every `.buttonStyle(.plain)` in the codebase
+now carries a content shape, and a new one should be treated as incomplete until
+it does.
+
+## Gestures cannot survive a view that rebuilds under them
+
+A `GeometryReader` around the curve plot made every point-move tear down and
+rebuild the gesture that was moving it: the move mutates the editor, the editor
+is `@Observable`, the window body re-evaluates, the reader re-lays out, and the
+canvas — along with its in-flight `DragGesture` — is replaced. Dragging worked
+for exactly one event.
+
+Two rules came out of it:
+
+- Give an interactive canvas a **fixed frame** when its size is known. The
+  inspector is 290 points wide with 16 either side, so the plot is 258. A
+  measurement that is really a constant buys nothing and costs view identity.
+- Transient gesture bookkeeping goes in a **reference type** held in `@State`.
+  Mutating `@State` *values* inside `onChanged` re-evaluates the body on every
+  pointer move; mutating a class instance invalidates nothing, so the gesture
+  survives its own updates.
+
+## Put the decision where it can be driven
+
+The curve editor's geometry was extracted to `CurveEditing` after it shipped
+non-functional, and it shipped non-functional a second time — because the fault
+was never in the geometry. It was in classifying a press as a click or a drag,
+which was still buried in the view.
+
+That state machine is now `CurveGesture` in `DarkroomCore`: pointer events in,
+effects out. The view is an adapter that relays positions and applies what comes
+back, holding no judgement of its own. `CurveGestureChecks` replays whole
+sequences through it — motionless clicks, shaky clicks, slow drags, drags across
+a neighbour, drags off the plot edge — and was mutation-tested against six ways
+the machine has plausibly been wrong, including the exact one that shipped.
+
+Whether SwiftUI delivers a press to the view at all is still only answerable by
+running the app. Everything after delivery is now a function of its inputs.
+
+## A check that crashes reports nothing
+
+`CurveGestureChecks` caught an unbalanced undo group by force-unwrapping an
+index, so the mutation that proved the check works also killed the process
+before it could print a single result — the suite reported a fatal error, not a
+failure. Look up optionally and let `expect` record the miss. A check's job is to
+say what is wrong, and it cannot do that from a stack trace.
