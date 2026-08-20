@@ -692,3 +692,73 @@ neutral grey beside a warm-graded photograph genuinely *appears* to shift warm,
 which is the very effect the neutral surround exists to keep out of the image.
 That would make the observation real and the surround correct at the same time.
 A specific file and look would settle it.
+
+---
+
+## The look that tinted the canvas
+
+Reported three times before it was found, and worth recording in full because
+almost every step of the diagnosis was wrong.
+
+### The mechanism
+
+A colour cube maps RGB and leaves alpha alone. Every pixel outside a photograph
+is transparent black — `(0, 0, 0, 0)` — and the cube turns it into
+`(cube(black), 0)`: a colour carrying no alpha. That is not valid premultiplied
+data, and source-over computes `src + dst × (1 − src.a)`, which with an alpha of
+zero reduces to `cube(black) + dst`.
+
+So the canvas surround was not being *replaced* by the look. It was being **added
+to**. The arithmetic matched the reported values to the code: for Golden, in
+linear light, `ground + cube(black)` is (39, 38, 37) — exactly what the user's
+diagnostic contained.
+
+### Why it hid
+
+**It only happens with a neutral tonal grade.** Any non-neutral adjustment puts a
+kernel with an explicit extent between the cube and the composite, and that
+breaks the chain by accident. Every reported sighting had all sliders at rest;
+every attempt to reproduce it here had adjustments set, because the snapshot tool
+applied some to make its output look like a real edit.
+
+### Four fixes that did not work
+
+Measured, in order:
+
+- `cropped(to:)` — does not clip it. The extent is finite at every stage; the
+  leak is in the composite, not the geometry.
+- `premultiplyingAlpha()` — rescales every partially transparent pixel.
+- `insertingIntermediate()`, on either side of the composite — no effect, so the
+  cause is not kernel fusion, which was the theory at the time.
+- `CISourceInCompositing` — works, and multiplies alpha by alpha, turning a
+  half-transparent pixel into a quarter-transparent one.
+
+The fix is a three-line colour kernel that zeroes colour where alpha is zero and
+touches nothing else.
+
+### Three fixtures that lied
+
+The check took as long as the fix, because each fixture in turn passed against
+visibly broken code:
+
+| fixture | result |
+| --- | --- |
+| `CIImage(color:)` | false *positive* — reported a clean path as broken |
+| `CIImage(bitmapData:)` | passed against broken code |
+| a **PNG** on disk | passed against broken code |
+| a **JPEG** on disk | catches it |
+
+A JPEG has no alpha channel, so Core Image decodes it opaque — and only then does
+the cube's treatment of the surrounding transparent black become visible. The
+canvas proportions matter too: the check now mirrors the reported configuration,
+a portrait photograph in a landscape canvas.
+
+### What this cost, and what it is worth
+
+Three rounds of "measured, cannot reproduce" — each honest, each wrong — because
+every measurement used a fixture that could not exhibit the bug. The user was
+right every time.
+
+**The rule:** when someone reports something a test cannot reproduce, suspect the
+fixture before the report. A synthetic input is a hypothesis about what matters,
+and it is exactly the hypothesis under question.

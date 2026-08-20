@@ -172,3 +172,24 @@ extern "C" float4 darkroomApplyMask(
 
     return mix(source, graded, m);
 }
+
+/// Repairs premultiplied data that a colour lookup has invalidated.
+///
+/// A colour cube maps RGB and leaves alpha alone, so transparent black —
+/// (0,0,0,0) — comes out as (cube(black), 0): a colour carrying no alpha. That
+/// is not valid premultiplied data, and source-over computes
+/// `src + dst × (1 − src.a)`, which with zero alpha *adds* that colour to
+/// whatever is behind. On a canvas, the surround takes on the look.
+///
+/// Zeroing colour where alpha is zero, and touching nothing else. Deliberately
+/// not `premultiplyingAlpha()`, which rescales every partially transparent
+/// pixel, and not source-in compositing, which multiplies alpha by alpha and
+/// turns a half-transparent pixel into a quarter-transparent one. Both were
+/// tried; both traded this bug for a different one.
+extern "C" float4 darkroomRepairPremultiplied(coreimage::sample_t s) {
+    // A threshold rather than an exact comparison: alpha arrives as a float that
+    // has been through a colour-managed pipeline, and exact zero is not
+    // something to rely on.
+    float keep = step(0.5f / 255.0f, s.a);
+    return float4(s.rgb * keep, s.a);
+}

@@ -279,6 +279,49 @@ public enum RenderChecks {
         return check.finish()
     }
 
+    /// Writes a solid photograph to a temporary PNG, for checks that need a
+    /// genuinely decoded image rather than a Core Image generator.
+    static func writeTemporaryPhotograph(
+        r: Int, g: Int, b: Int, width: Int, height: Int
+    ) -> URL? {
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: width, pixelsHigh: height,
+            bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bitmapFormat: .alphaNonpremultiplied,
+            bytesPerRow: width * 4, bitsPerPixel: 32
+        ), let data = rep.bitmapData else { return nil }
+
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = y * rep.bytesPerRow + x * 4
+                data[offset] = UInt8(r)
+                data[offset + 1] = UInt8(g)
+                data[offset + 2] = UInt8(b)
+                data[offset + 3] = 255
+            }
+        }
+
+        // JPEG, not PNG, and the distinction matters. A JPEG has no alpha
+        // channel, so Core Image decodes it as opaque — and it was only with an
+        // opaque decoded image that the colour cube's treatment of the
+        // surrounding transparent black became visible. A PNG fixture, carrying
+        // an alpha channel, passed against broken code.
+        guard let jpeg = rep.representation(
+            using: .jpeg, properties: [.compressionFactor: 1.0]
+        ) else { return nil }
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "darkroom-surround-check.jpg")
+        do {
+            try jpeg.write(to: url)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
     /// A solid patch backed by real pixel data.
     ///
     /// Distinct from ``solidImage(r:g:b:size:)``, which wraps `CIImage(color:)`
@@ -473,23 +516,37 @@ public enum RenderChecks {
         var check = Checker(suite: "Render", name: "the canvas surround stays neutral under any grade")
 
         // A canvas larger than the photograph, so there is surround to inspect.
-        let canvas = CGRect(x: 0, y: 0, width: 96, height: 96)
+        // Proportioned like the configuration this was reported in: a portrait
+        // photograph fitted into a landscape canvas, leaving surround on the
+        // left and right.
+        let canvas = CGRect(x: 0, y: 0, width: 225, height: 175)
 
-        // Backed by real pixels rather than `CIImage(color:)`.
+        // Loaded from a real file on disk, through the real loader.
         //
-        // A colour image is a generator with infinite extent that has been
-        // cropped, and it does not behave like a decoded photograph through a
-        // colour cube — an earlier version of this check reported the surround
-        // shifting by six codes on a path that is demonstrably clean when a real
-        // file is rendered. The false positive cost more time than the check
-        // saves, so the fixture matches what the app actually loads.
-        let photograph = bitmapPatch(
-            r: 180, g: 140, b: 110,
-            size: CGSize(width: 64, height: 24)
-        )
+        // Two weaker fixtures were tried first and both passed against code
+        // that was visibly broken. `CIImage(color:)` is an infinite generator
+        // that has been cropped. `CIImage(bitmapData:)` is closer but still not
+        // a decoded photograph. Only a file that goes through `ImageLoader`
+        // reproduces the transparent surround the colour cube turns into an
+        // additive leak — so only a file catches this.
+        guard let url = writeTemporaryPhotograph(r: 180, g: 140, b: 110, width: 220, height: 296),
+              let loaded = try? ImageLoader.load(contentsOf: url)
+        else {
+            check.fail("could not prepare a test photograph")
+            return check.finish()
+        }
+        defer { try? FileManager.default.removeItem(at: url) }
+        let photograph = loaded.image
 
         let expected = sRGBByte(from: CanvasComposition.surround)
 
+        // Every case here uses a NEUTRAL tonal grade, because that is the only
+        // path the bug was reachable through: any non-neutral adjustment puts a
+        // kernel with an explicit extent between the colour cube and the
+        // composite, which breaks the chain by accident and hides it.
+        //
+        // An earlier version of this check applied adjustments alongside the
+        // look and passed against broken code for exactly that reason.
         var cases: [(name: String, image: CIImage)] = [("ungraded", photograph)]
 
         // Every stock, not a sample of them. A sample is how this check missed

@@ -120,8 +120,39 @@ public enum LookFilter {
         // the shape of the grain bug that did leak an infinite extent. Cheap
         // insurance against a real failure mode. Not a fix for something that
         // was happening.
-        guard !image.extent.isInfinite else { return output }
-        return output.cropped(to: image.extent)
+        // Repaired, because a colour cube invalidates premultiplied data.
+        //
+        // The cube maps RGB and leaves alpha alone. Transparent black — every
+        // pixel outside the photograph — is (0,0,0,0), and the cube turns it
+        // into (cube(black), 0): a colour carrying no alpha. Source-over then
+        // computes `src + dst × (1 − src.a)`, and with zero alpha that is
+        // `cube(black) + ground`. The canvas surround gets *added to*, which is
+        // exactly how this was reported: choosing a look tinted the whole window.
+        //
+        // The arithmetic matched to the code value. For Golden, in linear light,
+        // ground + cube(black) is (39, 38, 37) — the measured surround.
+        //
+        // Four other repairs were tried and measured. `cropped(to:)` does not
+        // clip it. `premultiplyingAlpha()` rescales every partially transparent
+        // pixel. `insertingIntermediate()` on either side of the composite does
+        // nothing. `CISourceInCompositing` works but multiplies alpha by alpha,
+        // turning a half-transparent pixel into a quarter-transparent one.
+        //
+        // Only reachable with a neutral tonal grade: any non-neutral adjustment
+        // puts a kernel with an explicit extent between the cube and the
+        // composite, which breaks the chain by accident. Every reported sighting
+        // had all sliders at rest.
+        let repaired = (try? repairKernel.get())
+            .flatMap { $0.apply(extent: output.extent, arguments: [output]) }
+            ?? output
+
+        guard !image.extent.isInfinite else { return repaired }
+        return repaired.cropped(to: image.extent)
+    }
+
+    /// Zeroes colour where alpha is zero, leaving everything else untouched.
+    private static let repairKernel = Result {
+        try KernelLibrary.colorKernel("darkroomRepairPremultiplied")
     }
 
     /// Applies a cube at partial strength, blending against the ungraded image.

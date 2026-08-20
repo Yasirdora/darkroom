@@ -136,8 +136,15 @@ func main() throws {
     // `CanvasComposition` actually produces, so the surround around a graded
     // image can be inspected rather than assumed.
     // Rendered for several looks, so the surround can be compared across them.
+    // Adjustments reset to neutral first. With them set, the grading kernel runs
+    // and applies its own extent; with them neutral it short-circuits entirely —
+    // and a user's report had every adjustment at rest.
     for look in ["portra160", "magicGolden", "magicNatural", "magicGlow"] {
-        editor.update({ $0.look = .filmStock(id: look) }, label: look)
+        editor.update({ state in
+            state.adjustments = Adjustments()
+            state.curves = ChannelCurves.none
+            state.look = .filmStock(id: look)
+        }, label: look)
         guard let graded = editor.renderedImage else { continue }
         let canvas = CGRect(x: 0, y: 0, width: 900, height: 700)
         if let cgImage = editor.renderContext.makeCGImage(
