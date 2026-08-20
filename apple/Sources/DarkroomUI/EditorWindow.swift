@@ -69,7 +69,26 @@ public struct EditorWindow: View {
             for: .windowToolbar
         )
         .toolbarBackground(.visible, for: .windowToolbar)
-        .navigationTitle(editor.sourceURL?.lastPathComponent ?? "Darkroom")
+        .navigationTitle(windowTitle)
+    }
+
+    /// The window title, shortened in the middle when a filename is long.
+    ///
+    /// The middle goes rather than the end, because the two informative parts of
+    /// a filename are its start and its extension — `DSC_0042_final_v3.ARW`
+    /// truncated at the end becomes indistinguishable from every other file in
+    /// the folder.
+    private var windowTitle: String {
+        guard let name = editor.sourceURL?.lastPathComponent else { return "Darkroom" }
+
+        let limit = 44
+        guard name.count > limit else { return name }
+
+        // Split unevenly: more of the head, since that is where a name differs
+        // from its neighbours, plus enough of the tail to keep the extension.
+        let head = name.prefix(limit - 16)
+        let tail = name.suffix(13)
+        return "\(head)…\(tail)"
     }
 
     @ToolbarContentBuilder

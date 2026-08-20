@@ -38,6 +38,18 @@ public struct AdjustmentSlider: View {
 
     private var isNeutral: Bool { value == key.neutralValue }
 
+    /// Returns the control to rest, animated.
+    ///
+    /// Animated because the thumb is being moved *for* you: without it the
+    /// control appears to teleport and it is not obvious the double-click was
+    /// what did it. Short enough not to delay the next adjustment.
+    private func resetToNeutral() {
+        withAnimation(.easeOut(duration: 0.15)) {
+            value = key.neutralValue
+        }
+        onCommit()
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
@@ -61,10 +73,17 @@ public struct AdjustmentSlider: View {
             track
         }
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            value = key.neutralValue
-            onCommit()
-        }
+        // Double-click resets, and it has to be attached *before* the drag
+        // gesture wins the arbitration — a `DragGesture(minimumDistance: 0)` on
+        // the track claims taps too, so a double-click there did nothing at all.
+        // `highPriorityGesture` gives the tap first refusal without weakening
+        // the drag.
+        .highPriorityGesture(
+            TapGesture(count: 2).onEnded {
+                guard value != key.neutralValue else { return }
+                resetToNeutral()
+            }
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(key.title)
         .accessibilityValue(key.accessibilityValue(value))

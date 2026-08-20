@@ -564,3 +564,79 @@ number needs converting when it is already in the space being compared against.
 survived an open. Leaving compare engaged across a new document would show it
 ungraded with no indication why — the app looking like it had ignored the file
 rather than remembered the last one.
+
+---
+
+## Grain turned the viewport black
+
+Reported from use. Moving the grain slider made the photograph disappear.
+
+`CIRandomGenerator` has infinite extent. The old implementation blended it and
+never cropped back, so the infinity propagated to the canvas — and an infinite
+extent has no pixels anyone can render, so the canvas drew bare ground.
+
+The code was also simply bad: it built a `CISoftLightBlendMode` and then
+discarded it through `.flatMap { _ in … }` before doing something else entirely.
+
+Rewritten around a property worth knowing: **overlay blending treats mid-grey as
+the identity.** Scaling the noise *toward* 0.5 by the amount makes strength fall
+out of the blend, so no separate mix is needed and zero grain is exactly the
+original image. Desaturating and scaling are both linear on the channels, so one
+`CIColorMatrix` does both.
+
+`extentPreservationCheck` now asserts that every spatial stage returns a finite
+extent equal to its input, for all of them rather than only grain — any filter
+touching a generator or a blend can leak an extent the same way.
+
+---
+
+## The alpha "fix" that was a regression
+
+A WebP with transparency was reported as rendering black. The obvious cause was
+premultiplication: Core Image carries colour multiplied by alpha, a colour cube
+is a lookup on colour, so feeding it `rgb × alpha` would look up the wrong entry.
+The obvious fix was to wrap the cube in `unpremultiplyingAlpha()` and
+`premultiplyingAlpha()`.
+
+**The obvious fix was wrong, and it was a regression.** Rendering the same file
+with and without it:
+
+```
+without:  opaque (208, 138, 83)   50% alpha (208, 138, 83)   ← correct
+with:     opaque (208, 138, 83)   50% alpha (182, 155, 113)  ← wrong
+```
+
+`CIColorCubeWithColorSpace` already handles alpha. Correcting for it a second
+time makes a translucent pixel grade to a different colour from its opaque twin.
+The reported black viewport was the canvas bug above, not this.
+
+It survived because reasoning replaced measurement. What settled it was
+rendering one file two ways and comparing pixels — which took two minutes and
+should have come first.
+
+### Six attempts at the check, and why ratios won
+
+Every readback in this area uses a different convention.
+`RenderContext.renderToBytes` returns premultiplied RGBA8.
+`NSBitmapImageRep.colorAt(x:y:)` returns unpremultiplied. `bitmapData` returns
+whatever the file holds. `CIImage(color:)` and `CIImage(bitmapData:)` differ
+again on input.
+
+Six absolute-value comparisons were written and all six failed against correct
+code, each in a plausible direction: 128 against 206, then 254 against 196, then
+a ratio of 1.0 that looked like total failure and was clipping.
+
+What worked was giving up on absolute values. **Premultiplication scales all
+three channels equally, so ratios between channels are invariant to it** — while
+a colour cube is non-linear, so if alpha ever reaches it the ratios move. The
+regression takes red-to-green from 1.41 to 1.25, well outside tolerance.
+
+One more trap, in the fixture rather than the code: `NSBitmapImageRep` defaults
+to premultiplied format. Writing unpremultiplied bytes into it has them
+reinterpreted and divided by alpha on read, clipping two channels and turning
+the test column grey — which looks exactly like the bug under test.
+`.alphaNonpremultiplied` is load-bearing.
+
+**The lesson worth keeping:** when a check disagrees with code that demonstrably
+works, suspect the check. And when a fix is "obviously right", render it two ways
+and look before believing it.

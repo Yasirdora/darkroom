@@ -46,21 +46,41 @@ public struct ColorCube: Sendable, Equatable, Hashable {
         let last = Double(size - 1)
         var entries = [UInt8](repeating: 0, count: size * size * size * 3)
 
-        for b in 0..<size {
-            for g in 0..<size {
-                for r in 0..<size {
-                    // The lattice is sampled at 8-bit code values, matching the
-                    // TypeScript engine: the transforms were authored against
-                    // 0…255 inputs and quantising here reproduces them exactly.
-                    let rn = ((Double(r) / last) * 255).rounded()
-                    let gn = ((Double(g) / last) * 255).rounded()
-                    let bn = ((Double(b) / last) * 255).rounded()
+        // Baked across all cores, one blue slice per iteration.
+        //
+        // A 64³ cube is 262,144 evaluations of the full emulsion chain, and it
+        // happens the first time a look is chosen — on the main thread, while
+        // someone is waiting to see the look. Serially that is long enough to
+        // feel like a stall rather than a response. The slices are independent,
+        // so this is close to free.
+        let slice = size * size * 3
+        entries.withUnsafeMutableBufferPointer { buffer in
+            // Safe despite the unchecked annotation: iteration `b` writes only
+            // the range `b * slice ..< (b + 1) * slice` and reads none of it, so
+            // no two threads touch the same byte.
+            nonisolated(unsafe) let output = buffer
+            nonisolated(unsafe) let sample = transform
 
-                    let out = transform(rn, gn, bn)
-                    let offset = (r + g * size + b * size * size) * 3
-                    entries[offset] = UInt8(out.r.rounded().clamped(to: 0...255))
-                    entries[offset + 1] = UInt8(out.g.rounded().clamped(to: 0...255))
-                    entries[offset + 2] = UInt8(out.b.rounded().clamped(to: 0...255))
+            DispatchQueue.concurrentPerform(iterations: size) { b in
+                let bn = ((Double(b) / last) * 255).rounded()
+                var offset = b * slice
+
+                for g in 0..<size {
+                    let gn = ((Double(g) / last) * 255).rounded()
+
+                    for r in 0..<size {
+                        // The lattice is sampled at 8-bit code values, matching
+                        // the TypeScript engine: the transforms were authored
+                        // against 0…255 inputs and quantising here reproduces
+                        // them exactly.
+                        let rn = ((Double(r) / last) * 255).rounded()
+
+                        let out = sample(rn, gn, bn)
+                        output[offset] = UInt8(out.r.rounded().clamped(to: 0...255))
+                        output[offset + 1] = UInt8(out.g.rounded().clamped(to: 0...255))
+                        output[offset + 2] = UInt8(out.b.rounded().clamped(to: 0...255))
+                        offset += 3
+                    }
                 }
             }
         }

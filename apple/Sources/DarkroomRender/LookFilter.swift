@@ -86,6 +86,17 @@ public enum LookFilter {
     // MARK: - Application
 
     /// Applies a cube at full strength.
+    ///
+    /// - Note: Alpha is deliberately left alone. `CIColorCubeWithColorSpace`
+    ///   already handles it — a half-transparent pixel and an opaque one of the
+    ///   same colour come out of the cube the same colour, which is the
+    ///   invariant that matters.
+    ///
+    ///   Wrapping this in `unpremultiplyingAlpha()` and `premultiplyingAlpha()`
+    ///   seems obviously right and is a regression: it applies a correction Core
+    ///   Image has already made, and a 50%-alpha pixel then grades to a visibly
+    ///   different colour from its opaque twin. Measured, not reasoned —
+    ///   `LookAlphaChecks` holds the numbers.
     public static func apply(_ cube: ColorCube, to image: CIImage) -> CIImage {
         let filter = CIFilter(name: "CIColorCubeWithColorSpace", parameters: [
             kCIInputImageKey: image,

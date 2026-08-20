@@ -169,38 +169,66 @@ public enum GradeFilter {
         ])?.outputImage ?? image
     }
 
+    /// Film grain.
+    ///
+    /// Overlay blending has a useful property: mid-grey is the identity. So the
+    /// noise is scaled *toward* 0.5 by the amount, and strength falls out of the
+    /// blend rather than needing a separate mix — at zero the noise is flat grey
+    /// and the image is untouched.
+    ///
+    /// One `CIColorMatrix` does both jobs at once. Desaturating and scaling are
+    /// each a linear operation on the channels, so they compose into a single
+    /// matrix instead of two passes.
     static func applyGrain(_ amount: Double, to image: CIImage) -> CIImage {
         let extent = image.extent
+        guard !extent.isInfinite, !extent.isEmpty else { return image }
+
+        let strength = (amount / 100 * 0.5).clamped(to: 0...1)
+        guard strength > 0 else { return image }
+
         guard let noise = CIFilter(name: "CIRandomGenerator")?.outputImage else { return image }
 
-        // Desaturated: colour noise reads as sensor failure, monochrome noise
-        // reads as film. Real emulsion grain is dye-cloud, not chroma, speckle.
-        let grey = CIFilter(name: "CIColorMatrix", parameters: [
+        // Desaturate and scale toward mid-grey in one matrix. Colour noise reads
+        // as sensor failure; monochrome reads as film, because real emulsion
+        // grain is dye-cloud rather than chroma speckle.
+        let luma = (r: 0.2126, g: 0.7152, b: 0.0722)
+        let bias = 0.5 * (1 - strength)
+        let row = CIVector(
+            x: luma.r * strength, y: luma.g * strength, z: luma.b * strength, w: 0
+        )
+
+        let scaled = CIFilter(name: "CIColorMatrix", parameters: [
             kCIInputImageKey: noise.cropped(to: extent),
-            "inputRVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
-            "inputGVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
-            "inputBVector": CIVector(x: 0.2126, y: 0.7152, z: 0.0722, w: 0),
+            "inputRVector": row,
+            "inputGVector": row,
+            "inputBVector": row,
             "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
-            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+            "inputBiasVector": CIVector(x: bias, y: bias, z: bias, w: 1),
         ])?.outputImage
 
-        guard let grey else { return image }
+        guard let scaled else { return image }
 
-        return CIFilter(name: "CISoftLightBlendMode", parameters: [
-            kCIInputImageKey: image,
+        let blended = CIFilter(name: "CIOverlayBlendMode", parameters: [
+            kCIInputImageKey: scaled,
             kCIInputBackgroundImageKey: image,
-        ])?.outputImage.flatMap { _ in
-            blend(image, toward: overlay(grey, on: image), by: amount / 100 * 0.5)
-        } ?? image
+        ])?.outputImage
+
+        // Cropped back to the source extent, and this is the part that matters.
+        // CIRandomGenerator has infinite extent, and a blend involving it can
+        // carry that infinity through. An infinite extent has no pixels anyone
+        // can render, so the canvas falls back to drawing bare ground — the
+        // image vanishes entirely the moment grain is touched.
+        return blended?.cropped(to: extent) ?? image
     }
 
     // MARK: - Helpers
 
     static func overlay(_ top: CIImage, on bottom: CIImage) -> CIImage {
-        CIFilter(name: "CIOverlayBlendMode", parameters: [
+        let blended = CIFilter(name: "CIOverlayBlendMode", parameters: [
             kCIInputImageKey: top,
             kCIInputBackgroundImageKey: bottom,
-        ])?.outputImage ?? bottom
+        ])?.outputImage
+        return blended?.cropped(to: bottom.extent) ?? bottom
     }
 
     /// Blends `image` toward `target` by `amount`, allowing extrapolation.
@@ -208,10 +236,14 @@ public enum GradeFilter {
     /// An amount above 1 or below 0 pushes past either endpoint, which is how
     /// negative clarity is expressed as the inverse of positive clarity.
     static func blend(_ image: CIImage, toward target: CIImage, by amount: Double) -> CIImage {
-        CIFilter(name: "CIDissolveTransition", parameters: [
+        let blended = CIFilter(name: "CIDissolveTransition", parameters: [
             kCIInputImageKey: image,
             kCIInputTargetImageKey: target,
             kCIInputTimeKey: amount,
-        ])?.outputImage ?? image
+        ])?.outputImage
+        // Cropped for the same reason grain is: a transition between images of
+        // differing extent can produce one larger than either, and an extent
+        // that escapes here escapes all the way to the canvas.
+        return blended?.cropped(to: image.extent) ?? image
     }
 }

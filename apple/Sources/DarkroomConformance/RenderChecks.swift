@@ -1,6 +1,7 @@
 import Foundation
 import CoreImage
 import CoreGraphics
+import AppKit
 import DarkroomCore
 import DarkroomRender
 
@@ -42,6 +43,8 @@ public enum RenderChecks {
         results.append(curveKernelCheck())
         results.append(contentsOf: gradeChecks(context))
         results.append(canvasCoverageCheck(context))
+        results.append(extentPreservationCheck())
+        results.append(transparencyCheck(context))
         results.append(contentsOf: curveRenderChecks(context))
         results.append(contentsOf: lookCheck(context))
         results.append(intensityCheck(context))
@@ -296,6 +299,282 @@ public enum RenderChecks {
     /// area around it one continuous grey.
     static func sRGBByte(from color: CIColor) -> (r: Double, g: Double, b: Double) {
         (Double(color.red) * 255, Double(color.green) * 255, Double(color.blue) * 255)
+    }
+
+    /// Every stage returns a finite extent matching its input.
+    ///
+    /// Guards a bug found in use: grain turned the viewport black. The cause was
+    /// `CIRandomGenerator`, which has infinite extent, carried through a blend
+    /// and never cropped back. An infinite extent has no pixels anyone can
+    /// render, so the canvas fell back to bare ground and the photograph
+    /// vanished the moment the slider moved.
+    ///
+    /// Nothing about that is a colour error, so no colour comparison could see
+    /// it. It needed an invariant about *geometry*, which is what this is —
+    /// applied to every stage rather than only to grain, since any filter
+    /// touching a generator or a blend can leak an extent the same way.
+    static func extentPreservationCheck() -> CheckResult {
+        var check = Checker(suite: "Render", name: "every stage preserves a finite extent")
+
+        let extent = CGRect(x: 0, y: 0, width: 64, height: 48)
+        let source = solidImage(r: 128, g: 128, b: 128, size: extent.size)
+
+        // Each control at a value that actually engages its stage, including the
+        // extremes where a filter is most likely to misbehave.
+        let cases: [(name: String, adjustments: Adjustments)] = [
+            ("grain 1", adjustments { $0.grain = 1 }),
+            ("grain 50", adjustments { $0.grain = 50 }),
+            ("grain 100", adjustments { $0.grain = 100 }),
+            ("clarity +100", adjustments { $0.clarity = 100 }),
+            ("clarity -100", adjustments { $0.clarity = -100 }),
+            ("sharpen +100", adjustments { $0.sharpen = 100 }),
+            ("blur -100", adjustments { $0.sharpen = -100 }),
+            ("vignette 100", adjustments { $0.vignette = 100 }),
+            ("everything", adjustments {
+                $0.grain = 60; $0.clarity = 40; $0.sharpen = -30; $0.vignette = 50
+            }),
+        ]
+
+        for (name, values) in cases {
+            let output = GradeFilter.applySpatialStages(values, to: source)
+
+            check.expect(
+                !output.extent.isInfinite,
+                "\(name): produced an infinite extent — the canvas cannot render it"
+            )
+            check.expect(
+                !output.extent.isEmpty,
+                "\(name): produced an empty extent"
+            )
+            check.expect(
+                output.extent == extent,
+                "\(name): extent became \(output.extent), expected \(extent)"
+            )
+        }
+
+        return check.finish()
+    }
+
+    /// A transparent image survives the pipeline with its colour intact.
+    ///
+    /// Guards a bug found in use: a WebP with transparency rendered black once a
+    /// look was applied. Core Image carries colour premultiplied by alpha, and a
+    /// colour cube is a lookup on *colour* — so feeding it `rgb × alpha` looked
+    /// up the wrong entry for every pixel that was not fully opaque.
+    ///
+    /// Written against a real file on disk, loaded through `ImageLoader`, rather
+    /// than a synthesised `CIImage`. Two earlier attempts failed against
+    /// perfectly correct code because the premultiplication conventions of
+    /// `CIImage(color:)` and `CIImage(bitmapData:)` were guessed at wrongly —
+    /// and a check that fails in a plausible direction costs more time than it
+    /// saves. The decoder's own behaviour is the thing under test anyway.
+    static func transparencyCheck(_ context: RenderContext) -> CheckResult {
+        var check = Checker(suite: "Render", name: "transparency survives a look")
+
+        guard let stock = FilmStock.stock(id: "portra400") else {
+            check.fail("portra400 is missing")
+            return check.finish()
+        }
+        let cube = FilmModel.bake(stock)
+
+        // Two columns of one colour: opaque on the left, half-transparent on the
+        // right. Written as a PNG, which stores colour unpremultiplied, exactly
+        // as the files this bug was reported against do.
+        let width = 32, height = 8
+        // `.alphaNonpremultiplied` is load-bearing, and its absence cost real
+        // time. Without it the representation is premultiplied, so the
+        // unpremultiplied bytes written below are reinterpreted as premultiplied
+        // and divided by alpha on read — clipping two channels to 255 and
+        // turning the half-transparent column grey. Which then looks exactly
+        // like the bug under test, in a fixture rather than in the code.
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: width, pixelsHigh: height,
+            bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bitmapFormat: .alphaNonpremultiplied,
+            bytesPerRow: width * 4, bitsPerPixel: 32
+        ) else {
+            check.fail("could not build a test bitmap")
+            return check.finish()
+        }
+
+        // Written straight into the backing store. `setPixel(_:atX:y:)` takes an
+        // `UnsafeMutablePointer<Int>`, and handing it a pointer to a temporary
+        // array is undefined behaviour — the array is gone before the call reads
+        // it, which showed up here as every pixel arriving with zero alpha.
+        guard let data = rep.bitmapData else {
+            check.fail("the test bitmap has no backing store")
+            return check.finish()
+        }
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = y * rep.bytesPerRow + x * 4
+                data[offset] = 200
+                data[offset + 1] = 150
+                data[offset + 2] = 120
+                data[offset + 3] = x < width / 2 ? 255 : 128
+            }
+        }
+
+        guard let png = rep.representation(using: .png, properties: [:]) else {
+            check.fail("could not encode the test bitmap")
+            return check.finish()
+        }
+
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "darkroom-alpha-check.png")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        do {
+            try png.write(to: url)
+        } catch {
+            check.fail("could not write the test file: \(error.localizedDescription)")
+            return check.finish()
+        }
+
+        let loaded: ImageLoader.LoadedImage
+        do {
+            loaded = try ImageLoader.load(contentsOf: url)
+        } catch {
+            check.fail("could not load the test file: \(error.localizedDescription)")
+            return check.finish()
+        }
+
+        let graded = LookFilter.apply(cube, to: loaded.image)
+
+        // Compared in an exported file rather than in a rendered buffer.
+        //
+        // `renderToBytes` hands back premultiplied RGBA8, so a half-transparent
+        // pixel arrives already faded by its own alpha and cannot be compared
+        // against an opaque one without undoing that — and undoing it correctly
+        // is precisely the modelling that went wrong four times here. A PNG
+        // stores colour unpremultiplied, so the comparison needs no model at
+        // all. It is also the artefact a user actually receives.
+        let exported = FileManager.default.temporaryDirectory
+            .appending(path: "darkroom-alpha-check-out.png")
+        defer { try? FileManager.default.removeItem(at: exported) }
+
+        do {
+            try ImageExporter.write(graded, to: exported, format: .png, context: context)
+        } catch {
+            check.fail("could not export: \(error.localizedDescription)")
+            return check.finish()
+        }
+
+        guard let data = try? Data(contentsOf: exported),
+              let result = NSBitmapImageRep(data: data)
+        else {
+            check.fail("could not read the exported file back")
+            return check.finish()
+        }
+
+        // Raw samples, deliberately unscaled.
+        //
+        // No attempt is made to undo premultiplication, because the comparison
+        // below does not need it: it compares *ratios* between channels, and
+        // premultiplication scales all three equally. Trying to unpremultiply
+        // here actively broke an earlier version — dividing by a half-alpha
+        // clipped two channels at 255 and made every ratio 1.0, which reads as
+        // a total failure on code that was fine.
+        guard let samples = result.bitmapData else {
+            check.fail("the exported file has no readable samples")
+            return check.finish()
+        }
+
+        func sample(x: Int) -> (r: Double, g: Double, b: Double, a: Double) {
+            let offset = (height / 2) * result.bytesPerRow + x * (result.bitsPerPixel / 8)
+            return (
+                Double(samples[offset]),
+                Double(samples[offset + 1]),
+                Double(samples[offset + 2]),
+                Double(samples[offset + 3])
+            )
+        }
+
+        let opaque = sample(x: width / 4)
+        let translucent = sample(x: width * 3 / 4)
+
+        check.expectWithin(opaque.a, 255, codes: 2, "the opaque column kept full alpha")
+        check.expectWithin(translucent.a, 128, codes: 2, "the transparent column kept its alpha")
+
+        // Named outright, so a regression reports what it is rather than only
+        // that numbers moved.
+        let isBlack = translucent.r < 20 && translucent.g < 20 && translucent.b < 20
+        check.expect(
+            !isBlack,
+            """
+            a half-transparent pixel graded to \
+            (\(Int(translucent.r)), \(Int(translucent.g)), \(Int(translucent.b))) — \
+            colour is being lost to alpha
+            """
+        )
+
+        // THE INVARIANT: a look changes colour, and colour does not depend on
+        // opacity. Both columns began the same colour, so both must end the same
+        // *hue* — compared as ratios between channels rather than as absolute
+        // values.
+        //
+        // Ratios, because premultiplication scales all three channels by the
+        // same factor and therefore leaves them untouched. That makes this
+        // comparison independent of where alpha has been applied — which is the
+        // whole difficulty here. Every readback in this area has its own
+        // convention: `renderToBytes` premultiplies, `colorAt(x:y:)`
+        // unpremultiplies, `bitmapData` gives whatever the file holds. Six
+        // attempts at an absolute comparison each failed differently against
+        // code that was correct.
+        //
+        // A colour cube is non-linear, so if alpha ever reaches it the ratios
+        // *do* move: the regression this guards took red-to-green from 1.51 to
+        // 1.17, far outside the tolerance below.
+        func ratios(_ pixel: (r: Double, g: Double, b: Double, a: Double)) -> (Double, Double)? {
+            guard pixel.g > 1, pixel.b > 1 else { return nil }
+            return (pixel.r / pixel.g, pixel.g / pixel.b)
+        }
+
+        guard let opaqueRatio = ratios(opaque), let translucentRatio = ratios(translucent) else {
+            check.fail("a column graded too dark to compare — colour is being lost to alpha")
+            return check.finish()
+        }
+
+        check.expectWithin(
+            translucentRatio.0, opaqueRatio.0, codes: 0.06,
+            """
+            red-to-green is \(String(format: "%.2f", translucentRatio.0)) on a \
+            half-transparent pixel and \(String(format: "%.2f", opaqueRatio.0)) on an \
+            opaque one — alpha is reaching the colour cube
+            """
+        )
+        check.expectWithin(
+            translucentRatio.1, opaqueRatio.1, codes: 0.06,
+            """
+            green-to-blue is \(String(format: "%.2f", translucentRatio.1)) on a \
+            half-transparent pixel and \(String(format: "%.2f", opaqueRatio.1)) on an \
+            opaque one — alpha is reaching the colour cube
+            """
+        )
+
+        return check.finish()
+    }
+
+    /// Sets alpha to 1 without touching colour.
+    static func forcingOpaque(_ image: CIImage) -> CIImage {
+        CIFilter(name: "CIColorMatrix", parameters: [
+            kCIInputImageKey: image,
+            "inputRVector": CIVector(x: 1, y: 0, z: 0, w: 0),
+            "inputGVector": CIVector(x: 0, y: 1, z: 0, w: 0),
+            "inputBVector": CIVector(x: 0, y: 0, z: 1, w: 0),
+            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
+            "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+        ])?.outputImage ?? image
+    }
+
+    /// Builds an `Adjustments` from a mutation, for table-driven cases.
+    static func adjustments(_ configure: (inout Adjustments) -> Void) -> Adjustments {
+        var values = Adjustments()
+        configure(&values)
+        return values
     }
 
     // MARK: - Curves
