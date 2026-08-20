@@ -39,7 +39,7 @@ public struct AdjustmentSlider: View {
     private var isNeutral: Bool { value == key.neutralValue }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 Text(key.title)
                     .font(.system(size: 11, weight: .medium))
@@ -87,33 +87,53 @@ public struct AdjustmentSlider: View {
             let thumbX = width * fraction
 
             ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.primary.opacity(0.10))
-                    .frame(height: 3)
-
-                // Fills from the centre for bipolar controls, from the left for
-                // the rest. Exposure at −40 and exposure at +40 should not look
-                // alike, and with a left-anchored fill they nearly do.
-                if key.isBipolar {
-                    let centre = width / 2
+                // For a control whose axis *is* a colour — temperature, tint,
+                // hue — the gradient runs the full width of the track. Putting
+                // it on the fill instead crushes it into a stub beside the
+                // thumb at small values, where it reads as a smudge rather than
+                // as blue-to-amber. The axis is the information; the fill is
+                // only the amount.
+                if let axis = axisGradient {
+                    // Dimmed on purpose. A saturated gradient sitting beside
+                    // the photograph is exactly the chromatic contamination the
+                    // neutral surround exists to avoid — colour is judged
+                    // relative to everything in view, not just the frame. At
+                    // this weight the axis still reads instantly and stops
+                    // competing with the image for the eye.
                     Capsule()
-                        .fill(fillStyle)
-                        .frame(width: abs(thumbX - centre), height: 3)
-                        .offset(x: min(thumbX, centre))
+                        .fill(axis)
+                        .frame(height: 3)
+                        .opacity(0.6)
                 } else {
                     Capsule()
-                        .fill(fillStyle)
-                        .frame(width: thumbX, height: 3)
+                        .fill(Color.primary.opacity(0.10))
+                        .frame(height: 3)
+
+                    // Fills outward from the centre for bipolar controls, from
+                    // the left for the rest. Exposure at −40 and exposure at
+                    // +40 should not look alike, and with a left-anchored fill
+                    // they nearly do.
+                    if key.isBipolar {
+                        let centre = width / 2
+                        Capsule()
+                            .fill(Color.accentColor)
+                            .frame(width: abs(thumbX - centre), height: 3)
+                            .offset(x: min(thumbX, centre))
+                    } else {
+                        Capsule()
+                            .fill(Color.accentColor)
+                            .frame(width: thumbX, height: 3)
+                    }
                 }
 
                 Circle()
                     .fill(.white)
                     .frame(width: isDragging ? 13 : 11)
-                    .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
+                    .shadow(color: .black.opacity(0.45), radius: 1.5, y: 0.5)
                     .offset(x: thumbX - (isDragging ? 6.5 : 5.5))
                     .animation(.easeOut(duration: 0.12), value: isDragging)
             }
-            .frame(height: 16)
+            .frame(height: 14)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -131,14 +151,16 @@ public struct AdjustmentSlider: View {
                     }
             )
         }
-        .frame(height: 16)
+        .frame(height: 14)
     }
 
-    /// Tinted to show what the control does.
+    /// The gradient for a control whose axis is itself a colour.
     ///
-    /// A temperature slider that runs blue to amber says what it is without a
-    /// label, and is faster to reach for than a row of identical grey tracks.
-    private var fillStyle: AnyShapeStyle {
+    /// A temperature track running blue to amber says what the control does
+    /// without a label, and is faster to reach for than a row of identical grey
+    /// tracks. Returns `nil` for controls whose axis is an amount rather than a
+    /// colour, which get a neutral track and an accent fill instead.
+    private var axisGradient: AnyShapeStyle? {
         switch key.appearance {
         case .temperature:
             AnyShapeStyle(LinearGradient(
@@ -166,7 +188,7 @@ public struct AdjustmentSlider: View {
                 startPoint: .leading, endPoint: .trailing
             ))
         case .plain:
-            AnyShapeStyle(Color.accentColor)
+            nil
         }
     }
 

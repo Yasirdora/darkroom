@@ -82,7 +82,7 @@ public struct InspectorView: View {
 
             ForEach(Adjustments.Key.Group.allCases) { group in
                 Section {
-                    VStack(spacing: 13) {
+                    VStack(spacing: 14) {
                         ForEach(group.keys) { key in
                             AdjustmentSlider(
                                 key: key,
@@ -98,7 +98,7 @@ public struct InspectorView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 18)
+                    .padding(.bottom, 16)
                 } header: {
                     SectionHeader(title: group.title)
                 }

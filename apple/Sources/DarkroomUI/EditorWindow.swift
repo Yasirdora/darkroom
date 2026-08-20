@@ -55,6 +55,20 @@ public struct EditorWindow: View {
             Text(message)
         }
         .toolbar { toolbarContent }
+        // The toolbar carries the canvas's own tone rather than the system
+        // window material.
+        //
+        // Two reasons, and the second is the real one. A material behind the
+        // chrome sits directly above the photograph and picks up whatever is
+        // behind the window, which makes the frame around the image change tone
+        // as the window moves — and colour is judged relative to its
+        // surroundings. The first reason is simply that a mismatched slab above
+        // the canvas reads as an accident.
+        .toolbarBackground(
+            Color(red: 0.10, green: 0.10, blue: 0.105),
+            for: .windowToolbar
+        )
+        .toolbarBackground(.visible, for: .windowToolbar)
         .navigationTitle(editor.sourceURL?.lastPathComponent ?? "Darkroom")
     }
 
@@ -75,7 +89,10 @@ public struct EditorWindow: View {
             // where the controls no longer match what is on screen.
             Button {
             } label: {
-                Label("Compare", systemImage: "rectangle.righthalf.inset.filled.arrow.right")
+                // A split disc: the conventional before/after mark, and not
+                // confusable with the sidebar toggle the previous icon
+                // resembled.
+                Label("Compare", systemImage: "circle.righthalf.filled")
             }
             .help("Hold to see the image before grading")
             .disabled(!editor.hasImage)
