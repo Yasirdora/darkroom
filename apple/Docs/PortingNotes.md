@@ -525,3 +525,42 @@ inventing a field would break the compatibility the format exists for.
 The CLI says so when it prints a link for a grade that uses a selection. Silence
 would mean sending someone a link that arrives without the mask that made the
 grade work, and no way to tell.
+
+---
+
+## A stale photograph behind a new one
+
+Reported from use, not found by any check: opening a second photograph sometimes
+left the first one visible around it.
+
+**Cause.** `CIContext.render(_:to:commandBuffer:bounds:colorSpace:)` writes only
+the pixels the image actually covers. `MTKView.clearColor` does not help, because
+it applies to a render pass and none is used — Core Image writes to the drawable's
+texture directly. Metal then recycles drawables from a small pool, so any region
+the new photograph failed to cover still held an older frame.
+
+That explains the intermittency, which was the most useful clue in the report:
+whether the stale frame showed depended on which drawable came out of the pool,
+so the same action produced different results.
+
+**Fix.** `CanvasComposition.compose` generates an opaque ground the full size of
+the target and composites the photograph over it, so every pixel is written every
+frame. Partial coverage is now impossible rather than merely unlikely.
+
+**Why it lives in DarkroomRender.** The bug was invisible to every kind of check
+the project had — it was in the drawable, it was intermittent, and it looked like
+a rendering glitch rather than a logic error. Moving placement and compositing
+out of the view and into a pure function made the invariant assertable: *every
+pixel of the target is written*. Reintroducing the bug now leaves 2,688 of 3,072
+pixels unwritten on a wide image, and the suite says so.
+
+**A second mistake, in the check itself.** The first version expected the
+surround to render at 89 where it correctly rendered 25 — it applied an sRGB
+transfer function to a `CIColor` that was already sRGB. Worth recording because
+it is the same error as reading a qualifier mask through Display P3: assuming a
+number needs converting when it is already in the space being compared against.
+
+**A sibling, fixed at the same time.** Compare and crop were view state that
+survived an open. Leaving compare engaged across a new document would show it
+ungraded with no indication why — the app looking like it had ignored the file
+rather than remembered the last one.

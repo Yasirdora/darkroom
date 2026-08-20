@@ -129,6 +129,15 @@ public final class Editor {
             undoStack.removeAll()
             redoStack.removeAll()
 
+            // Transient view state belongs to the document that was open, not
+            // to the window. Leaving compare engaged across an open would show
+            // the new photograph ungraded with no indication why, and leaving
+            // crop engaged would show it uncropped — both look like the app
+            // ignoring the file rather than remembering the last one.
+            isComparing = false
+            isCropping = false
+            interaction = nil
+
             refreshScopes()
         } catch {
             errorMessage = error.localizedDescription

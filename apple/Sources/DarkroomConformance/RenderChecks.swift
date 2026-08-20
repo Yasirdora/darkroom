@@ -41,6 +41,7 @@ public enum RenderChecks {
         results.append(gradeKernelCheck())
         results.append(curveKernelCheck())
         results.append(contentsOf: gradeChecks(context))
+        results.append(canvasCoverageCheck(context))
         results.append(contentsOf: curveRenderChecks(context))
         results.append(contentsOf: lookCheck(context))
         results.append(intensityCheck(context))
@@ -198,6 +199,104 @@ public enum RenderChecks {
     /// against 8-bit output. Held at one code for the same reason as
     /// ``toleranceCodes``.
     static let gradeToleranceCodes = 1.0
+
+    // MARK: - Canvas
+
+    /// Every pixel of the canvas is written on every frame.
+    ///
+    /// This guards a bug a user found and no existing check could have: Core
+    /// Image writes only where an image falls, `MTKView.clearColor` does not
+    /// apply when no render pass is used, and Metal recycles drawables from a
+    /// small pool — so whatever a new photograph failed to cover still showed an
+    /// older one. Intermittently, because it depended which drawable came up.
+    ///
+    /// Nothing about it was visible to a colour comparison. It needed an
+    /// invariant of its own, which is what this is.
+    static func canvasCoverageCheck(_ context: RenderContext) -> CheckResult {
+        var check = Checker(suite: "Render", name: "the canvas writes every pixel of its target")
+
+        let target = CGRect(x: 0, y: 0, width: 64, height: 48)
+        let ground = CanvasComposition.surround
+
+        // Shapes that cannot fill the target: wider than it, taller than it,
+        // far smaller, and none at all. Each leaves a different region uncovered
+        // and each must still come back fully painted.
+        let cases: [(name: String, image: CIImage?)] = [
+            ("no image", nil),
+            ("wide", solidImage(r: 220, g: 40, b: 40, size: CGSize(width: 200, height: 20))),
+            ("tall", solidImage(r: 40, g: 220, b: 40, size: CGSize(width: 20, height: 200))),
+            ("tiny", solidImage(r: 40, g: 40, b: 220, size: CGSize(width: 4, height: 4))),
+            ("square", solidImage(r: 200, g: 200, b: 200, size: CGSize(width: 100, height: 100))),
+        ]
+
+        for (name, image) in cases {
+            let composed = CanvasComposition.compose(image, in: target)
+
+            check.expect(
+                composed.extent.contains(target) || composed.extent.isInfinite,
+                "\(name): composition extent \(composed.extent) does not cover \(target)"
+            )
+
+            let bytes = context.renderToBytes(composed, in: target, colorSpace: sRGB)
+            guard bytes.count == Int(target.width * target.height) * 4 else {
+                check.fail("\(name): rendered \(bytes.count) bytes for a \(Int(target.width))×\(Int(target.height)) target")
+                continue
+            }
+
+            // Fully opaque everywhere. A transparent pixel is one Core Image
+            // never wrote, which on a recycled drawable is where a stale frame
+            // shows through.
+            var transparent = 0
+            for pixel in stride(from: 3, to: bytes.count, by: 4) where bytes[pixel] != 255 {
+                transparent += 1
+            }
+            check.expect(
+                transparent == 0,
+                "\(name): \(transparent) of \(bytes.count / 4) pixels were left unwritten"
+            )
+        }
+
+        // The ground must be the surround colour, not black. A canvas that
+        // clears to black rather than to the neutral grey changes how every
+        // grade beside it reads.
+        let empty = context.renderToBytes(
+            CanvasComposition.compose(nil, in: target), in: target, colorSpace: sRGB
+        )
+        if empty.count >= 4 {
+            let expected = sRGBByte(from: ground)
+            check.expectWithin(Double(empty[0]), expected.r, codes: 2, "empty canvas red")
+            check.expectWithin(Double(empty[1]), expected.g, codes: 2, "empty canvas green")
+            check.expectWithin(Double(empty[2]), expected.b, codes: 2, "empty canvas blue")
+        } else {
+            check.fail("the empty canvas rendered no pixels")
+        }
+
+        return check.finish()
+    }
+
+    /// A solid patch of a given size, in 8-bit sRGB code values.
+    static func solidImage(r: Int, g: Int, b: Int, size: CGSize) -> CIImage {
+        let color = CIColor(
+            red: CGFloat(r) / 255, green: CGFloat(g) / 255, blue: CGFloat(b) / 255,
+            alpha: 1, colorSpace: sRGB
+        ) ?? CIColor(red: 0, green: 0, blue: 0)
+        return CIImage(color: color).cropped(to: CGRect(origin: .zero, size: size))
+    }
+
+    /// The surround, as the 8-bit values it renders to.
+    ///
+    /// A `CIColor` built without an explicit colour space is already in sRGB, so
+    /// its components scale straight to code values — no transfer function.
+    /// (Applying one anyway was this check's first mistake: it expected 89 where
+    /// the canvas correctly rendered 25.)
+    ///
+    /// That matters beyond arithmetic: it means `CanvasComposition.surround` and
+    /// SwiftUI's `Color(red:green:blue:)` — which is also sRGB — describe the
+    /// same tone from the same numbers, which is what keeps the canvas and the
+    /// area around it one continuous grey.
+    static func sRGBByte(from color: CIColor) -> (r: Double, g: Double, b: Double) {
+        (Double(color.red) * 255, Double(color.green) * 255, Double(color.blue) * 255)
+    }
 
     // MARK: - Curves
 

@@ -91,18 +91,18 @@ public struct CanvasView: NSViewRepresentable {
                 size: CGSize(width: drawable.texture.width, height: drawable.texture.height)
             )
 
-            guard let image, !image.extent.isInfinite, !image.extent.isEmpty else {
-                // Nothing to draw, but the drawable still needs presenting or
-                // the window keeps whatever was there before.
-                commands.present(drawable)
-                commands.commit()
-                return
-            }
-
-            let placed = place(image, in: target, scale: view.drawableSize.width / view.bounds.width)
+            // The composition lives in DarkroomRender so it can be checked; see
+            // CanvasComposition for why every pixel of the target must be
+            // written on every frame.
+            let composited = CanvasComposition.compose(
+                image,
+                in: target,
+                zoom: zoom,
+                contentScale: view.drawableSize.width / max(view.bounds.width, 1)
+            )
 
             context.ciContext.render(
-                placed,
+                composited,
                 to: drawable.texture,
                 commandBuffer: commands,
                 bounds: target,
@@ -111,33 +111,6 @@ public struct CanvasView: NSViewRepresentable {
 
             commands.present(drawable)
             commands.commit()
-        }
-
-        /// Scales and centres the image within the drawable.
-        private func place(_ image: CIImage, in target: CGRect, scale: CGFloat) -> CIImage {
-            let extent = image.extent
-
-            let factor: CGFloat
-            if let zoom {
-                factor = CGFloat(zoom) * scale
-            } else {
-                // Fit, but never enlarge: scaling a small image up to fill the
-                // window shows its pixels, not its grade.
-                factor = min(
-                    min(target.width / extent.width, target.height / extent.height),
-                    scale
-                )
-            }
-
-            let scaled = image.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
-            let bounds = scaled.extent
-
-            return scaled.transformed(
-                by: CGAffineTransform(
-                    translationX: target.midX - bounds.midX,
-                    y: target.midY - bounds.midY
-                )
-            )
         }
     }
 }
