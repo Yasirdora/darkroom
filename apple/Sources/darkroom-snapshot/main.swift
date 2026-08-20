@@ -122,6 +122,17 @@ func main() throws {
         to: directory.appending(path: "inspector-looks.png")
     )
 
+    editor.inspectorTab = .curves
+    editor.update({ state in
+        state.curves = ChannelCurves(master: .defaultS)
+    }, label: "Sample curve")
+    editor.refreshScopes()
+    try render(
+        InspectorView(editor: editor).frame(height: 820),
+        size: NSSize(width: 290, height: 820),
+        to: directory.appending(path: "inspector-curves.png")
+    )
+
     editor.inspectorTab = .scopes
     try render(
         InspectorView(editor: editor).frame(height: 820),

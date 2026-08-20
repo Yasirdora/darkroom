@@ -77,14 +77,46 @@ public final class Editor {
     /// Which inspector section is showing.
     public var inspectorTab: InspectorTab = .adjust
 
+    /// Canvas magnification, or `nil` to fit the window.
+    ///
+    /// Fit is the default and stays the default: a photograph you cannot see
+    /// whole is a photograph you cannot judge the composition of. Zoom is for
+    /// checking grain, focus and the shadow detail a curve is being pulled to
+    /// find — a temporary inspection, not a working state.
+    public var zoom: Double?
+
+    /// Steps offered by the zoom control, and cycled through by ⌘+ and ⌘−.
+    public static let zoomSteps: [Double] = [0.25, 0.5, 1, 2, 4, 8]
+
+    public var zoomDescription: String {
+        guard let zoom else { return "Fit" }
+        return zoom < 1
+            ? String(format: "%.0f%%", zoom * 100)
+            : "\(Int(zoom))×"
+    }
+
+    public func zoomIn() {
+        let current = zoom ?? 1
+        zoom = Self.zoomSteps.first { $0 > current + 0.001 } ?? Self.zoomSteps.last
+    }
+
+    public func zoomOut() {
+        let current = zoom ?? 1
+        zoom = Self.zoomSteps.last { $0 < current - 0.001 } ?? Self.zoomSteps.first
+    }
+
+    public func zoomToFit() { zoom = nil }
+    public func zoomToActualSize() { zoom = 1 }
+
     public enum InspectorTab: String, CaseIterable, Identifiable, Sendable {
-        case adjust, looks, scopes
+        case adjust, curves, looks, scopes
 
         public var id: String { rawValue }
 
         public var title: String {
             switch self {
             case .adjust: "Adjust"
+            case .curves: "Curves"
             case .looks: "Looks"
             case .scopes: "Scopes"
             }
@@ -93,6 +125,7 @@ public final class Editor {
         public var symbol: String {
             switch self {
             case .adjust: "slider.horizontal.3"
+            case .curves: "point.topleft.down.to.point.bottomright.curvepath"
             case .looks: "camera.filters"
             case .scopes: "waveform"
             }

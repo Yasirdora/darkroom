@@ -97,6 +97,26 @@ public struct DarkroomScene: Scene {
             .disabled(!editor.hasImage)
         }
 
+        CommandGroup(after: .toolbar) {
+            Button("Zoom In") { editor.zoomIn() }
+                .keyboardShortcut("+")
+                .disabled(!editor.hasImage)
+
+            Button("Zoom Out") { editor.zoomOut() }
+                .keyboardShortcut("-")
+                .disabled(!editor.hasImage)
+
+            Button("Actual Size") { editor.zoomToActualSize() }
+                .keyboardShortcut("1", modifiers: [.command, .shift])
+                .disabled(!editor.hasImage)
+
+            Button("Zoom to Fit") { editor.zoomToFit() }
+                .keyboardShortcut("0")
+                .disabled(!editor.hasImage)
+
+            Divider()
+        }
+
         CommandMenu("Inspector") {
             ForEach(Array(Editor.InspectorTab.allCases.enumerated()), id: \.element) { index, tab in
                 Button(tab.title) { editor.inspectorTab = tab }

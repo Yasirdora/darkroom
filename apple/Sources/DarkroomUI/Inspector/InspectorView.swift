@@ -25,6 +25,7 @@ public struct InspectorView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     switch editor.inspectorTab {
                     case .adjust: adjustments
+                    case .curves: CurveEditor(editor: editor)
                     case .looks: LookPicker(editor: editor)
                     case .scopes: ScopePanel(editor: editor)
                     }

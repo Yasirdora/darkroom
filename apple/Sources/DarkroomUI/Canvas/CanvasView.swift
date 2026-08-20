@@ -142,13 +142,17 @@ public struct CanvasArea: View {
             surround
 
             if editor.hasImage {
-                canvas.padding(24)
+                canvas.padding(editor.zoom == nil ? 24 : 0)
             } else {
                 EmptyCanvas()
             }
 
             if editor.isComparing {
                 comparisonBadge
+            }
+
+            if editor.hasImage {
+                zoomControl
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -158,7 +162,11 @@ public struct CanvasArea: View {
     private var canvas: some View {
         switch rendering {
         case .live:
-            CanvasView(image: editor.displayImage, context: editor.renderContext)
+            CanvasView(
+                image: editor.displayImage,
+                context: editor.renderContext,
+                zoom: editor.zoom
+            )
         case .still:
             if let image = stillImage {
                 Image(decorative: image, scale: 1)
@@ -189,6 +197,52 @@ public struct CanvasArea: View {
     private var surround: some View {
         Color(red: 0.10, green: 0.10, blue: 0.105)
             .ignoresSafeArea()
+    }
+
+    /// The zoom readout, bottom-right over the canvas.
+    ///
+    /// Over the canvas rather than in the toolbar, because it describes what is
+    /// on the canvas. It stays quiet at Fit and only asserts itself once the
+    /// view is no longer showing the whole photograph — which is the state worth
+    /// being reminded of.
+    private var zoomControl: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                HStack(spacing: 2) {
+                    Button { editor.zoomOut() } label: {
+                        Image(systemName: "minus").font(.system(size: 10, weight: .semibold))
+                            .frame(width: 22, height: 20)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Zoom out")
+
+                    Button {
+                        editor.zoom == nil ? editor.zoomToActualSize() : editor.zoomToFit()
+                    } label: {
+                        Text(editor.zoomDescription)
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .monospacedDigit()
+                            .frame(width: 40, height: 20)
+                    }
+                    .buttonStyle(.plain)
+                    .help(editor.zoom == nil ? "Zoom to 100%" : "Fit to window")
+                    .accessibilityLabel("Zoom \(editor.zoomDescription)")
+
+                    Button { editor.zoomIn() } label: {
+                        Image(systemName: "plus").font(.system(size: 10, weight: .semibold))
+                            .frame(width: 22, height: 20)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Zoom in")
+                }
+                .foregroundStyle(editor.zoom == nil ? .secondary : .primary)
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(.white.opacity(0.08)))
+                .padding(12)
+            }
+        }
     }
 
     private var comparisonBadge: some View {
