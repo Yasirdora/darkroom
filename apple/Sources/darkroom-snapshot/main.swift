@@ -128,6 +128,41 @@ func main() throws {
         to: directory.appending(path: "inspector-scopes.png")
     )
 
+    // The composed canvas exactly as the Metal path builds it.
+    //
+    // The window snapshots above draw the photograph through SwiftUI, which
+    // takes a different route to the screen than the app does. This renders what
+    // `CanvasComposition` actually produces, so the surround around a graded
+    // image can be inspected rather than assumed.
+    // Rendered for several looks, so the surround can be compared across them.
+    for look in ["portra160", "velvia50", "eterna"] {
+        editor.update({ $0.look = .filmStock(id: look) }, label: look)
+        guard let graded = editor.renderedImage else { continue }
+        let canvas = CGRect(x: 0, y: 0, width: 900, height: 700)
+        if let cgImage = editor.renderContext.makeCGImage(
+            CanvasComposition.compose(graded, in: canvas), in: canvas
+        ) {
+            let rep = NSBitmapImageRep(cgImage: cgImage)
+            if let png = rep.representation(using: .png, properties: [:]) {
+                try png.write(to: directory.appending(path: "canvas-\(look).png"))
+                print("  canvas-\(look).png")
+            }
+        }
+    }
+    editor.update({ $0.look = .filmStock(id: "portra400") }, label: "reset")
+
+    if editor.hasImage, let graded = editor.renderedImage {
+        let canvas = CGRect(x: 0, y: 0, width: 900, height: 700)
+        let composed = CanvasComposition.compose(graded, in: canvas)
+        if let cgImage = editor.renderContext.makeCGImage(composed, in: canvas) {
+            let rep = NSBitmapImageRep(cgImage: cgImage)
+            if let png = rep.representation(using: .png, properties: [:]) {
+                try png.write(to: directory.appending(path: "canvas-composed.png"))
+                print("  canvas-composed.png  \(rep.pixelsWide)×\(rep.pixelsHigh)")
+            }
+        }
+    }
+
     // The empty state deserves its own look. It is the first thing anyone sees,
     // and it is the screen most often left unconsidered.
     try render(

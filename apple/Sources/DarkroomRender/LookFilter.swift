@@ -104,7 +104,24 @@ public enum LookFilter {
             "inputCubeData": cubeData(from: cube),
             "inputColorSpace": cubeColorSpace,
         ])
-        return filter?.outputImage ?? image
+        guard let output = filter?.outputImage else { return image }
+
+        // Cropped back to the source extent.
+        //
+        // Defensive rather than corrective, and worth saying so plainly: with a
+        // bitmap-backed image `CIColorCubeWithColorSpace` already returns a
+        // finite extent, and removing this line changes nothing measurable. It
+        // was written to fix a reported symptom — a look appearing to tint the
+        // whole canvas — and measurement then showed the surround was already
+        // neutral to within one code across every look tried.
+        //
+        // It stays because a colour cube gives a defined colour to every input
+        // including the transparent black outside a frame, and that is exactly
+        // the shape of the grain bug that did leak an infinite extent. Cheap
+        // insurance against a real failure mode. Not a fix for something that
+        // was happening.
+        guard !image.extent.isInfinite else { return output }
+        return output.cropped(to: image.extent)
     }
 
     /// Applies a cube at partial strength, blending against the ungraded image.

@@ -640,3 +640,55 @@ the test column grey — which looks exactly like the bug under test.
 **The lesson worth keeping:** when a check disagrees with code that demonstrably
 works, suspect the check. And when a fix is "obviously right", render it two ways
 and look before believing it.
+
+---
+
+## A reported canvas tint that measurement could not find
+
+Reported: choosing a look appeared to tint the whole canvas, surround included.
+
+The theory was immediate and plausible — a colour cube gives a defined colour to
+every input including the transparent black outside a frame, so its output
+extent should be infinite, and an infinite graded plane would cover the surround.
+Exactly the grain bug by another route.
+
+**Measurement did not support it.** Composing a real photograph through the real
+pipeline and reading the canvas corners:
+
+| look | corner |
+| --- | --- |
+| Portra 160 | (26, 25, 27) |
+| Velvia 50 | (26, 25, 27) |
+| Eterna | (26, 25, 27) |
+
+The surround is (26, 26, 27). Identical across looks, neutral to within a code.
+Removing the crop that was written to fix it changes nothing measurable, because
+`CIColorCubeWithColorSpace` already returns a finite extent for a bitmap-backed
+image.
+
+The crop stays as insurance against a failure mode that is real in principle, and
+its comment says plainly that it is not a fix for something that was happening.
+
+### Two fixtures that lie
+
+Chasing this surfaced a fixture problem worth recording. `CIImage(color:)` is an
+infinite generator that has been cropped, and it does *not* behave like a decoded
+photograph at the edges. A check built on it reported the surround shifting by
+six codes on a path that is clean when a real file is rendered — a false positive
+that cost more than the check could ever save.
+
+`RenderChecks.bitmapPatch` exists for this: real pixels, for any question about
+how a filter treats the edge of an image. `solidImage` remains for questions
+about geometry and coverage, where a generator is fine.
+
+**The rule:** when a check disagrees with an app that demonstrably works, suspect
+the check — and when a fix is obvious, render it two ways and look before
+believing it.
+
+### What the report may actually be
+
+Unresolved, and stated as such. One possibility is simultaneous contrast: a
+neutral grey beside a warm-graded photograph genuinely *appears* to shift warm,
+which is the very effect the neutral surround exists to keep out of the image.
+That would make the observation real and the surround correct at the same time.
+A specific file and look would settle it.

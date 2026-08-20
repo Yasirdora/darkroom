@@ -44,6 +44,8 @@ public enum RenderChecks {
         results.append(contentsOf: gradeChecks(context))
         results.append(canvasCoverageCheck(context))
         results.append(extentPreservationCheck())
+        results.append(pipelineExtentCheck())
+        results.append(surroundPurityCheck(context))
         results.append(transparencyCheck(context))
         results.append(contentsOf: curveRenderChecks(context))
         results.append(contentsOf: lookCheck(context))
@@ -277,6 +279,26 @@ public enum RenderChecks {
         return check.finish()
     }
 
+    /// A solid patch backed by real pixel data.
+    ///
+    /// Distinct from ``solidImage(r:g:b:size:)``, which wraps `CIImage(color:)`
+    /// — an infinite generator that has been cropped. That is fine for checking
+    /// geometry and coverage, and misleading for anything that asks how a filter
+    /// treats the edge of an image.
+    static func bitmapPatch(r: Int, g: Int, b: Int, size: CGSize) -> CIImage {
+        let width = Int(size.width), height = Int(size.height)
+        let bytes: [UInt8] = (0..<(width * height)).flatMap { _ in
+            [UInt8(r), UInt8(g), UInt8(b), 255]
+        }
+        return CIImage(
+            bitmapData: Data(bytes),
+            bytesPerRow: width * 4,
+            size: size,
+            format: .RGBA8,
+            colorSpace: sRGB
+        )
+    }
+
     /// A solid patch of a given size, in 8-bit sRGB code values.
     static func solidImage(r: Int, g: Int, b: Int, size: CGSize) -> CIImage {
         let color = CIColor(
@@ -350,6 +372,166 @@ public enum RenderChecks {
                 output.extent == extent,
                 "\(name): extent became \(output.extent), expected \(extent)"
             )
+        }
+
+        return check.finish()
+    }
+
+    /// The whole pipeline preserves a finite extent, stage by stage.
+    ///
+    /// The spatial check above was not enough, and a user found the gap:
+    /// choosing a look tinted the entire window, surround included. A colour
+    /// cube maps *every* colour including the transparent black outside an
+    /// image's frame, and maps it to something opaque — so its output extent is
+    /// infinite, and the graded plane covers the canvas.
+    ///
+    /// The lesson generalised into this check: any filter that gives meaning to
+    /// pixels outside the frame hands back an infinite extent, and there are
+    /// several such filters in this pipeline. So every stage is checked rather
+    /// than the ones that seemed likely.
+    static func pipelineExtentCheck() -> CheckResult {
+        var check = Checker(suite: "Render", name: "the whole pipeline preserves a finite extent")
+
+        let extent = CGRect(x: 0, y: 0, width: 48, height: 32)
+        let source = solidImage(r: 160, g: 130, b: 110, size: extent.size)
+
+        // Stages are collected first and checked after. `Checker` is
+        // ~Copyable, so it cannot be captured by a closure — which is a useful
+        // constraint here anyway: it keeps the list of what is covered readable
+        // as a list.
+        var stages: [(name: String, image: CIImage)] = []
+
+        // A look on its own, which is where the reported bug lived.
+        for id in ["portra400", "velvia50", "trix400"] {
+            guard let stock = FilmStock.stock(id: id) else { continue }
+            let cube = FilmModel.bake(stock)
+            stages.append(("look \(id)", LookFilter.apply(cube, to: source)))
+            stages.append(("look \(id) at 50%", LookFilter.apply(cube, to: source, intensity: 50)))
+        }
+
+        // Curves, which sample a lookup texture.
+        stages.append(("curves", CurveFilter.apply(ChannelCurves(master: .defaultS), to: source)))
+
+        // The colour stage.
+        stages.append(("grade", GradeFilter.applyColorStage(
+            adjustments { $0.exposure = 30; $0.saturation = 40 }, to: source
+        )))
+
+        // A qualifier, which builds and blurs a mask.
+        var qualifier = Qualifier()
+        qualifier.isEnabled = true
+        qualifier.hueMin = 0
+        qualifier.hueMax = 80
+        qualifier.windowShape = .ellipse
+        if let stock = FilmStock.stock(id: "portra400") {
+            let graded = LookFilter.apply(FilmModel.bake(stock), to: source)
+            stages.append((
+                "qualifier",
+                QualifierFilter.apply(qualifier, graded: graded, source: source)
+            ))
+        }
+
+        // And everything at once, which is what the app actually renders.
+        var state = EditState()
+        state.adjustments.exposure = 20
+        state.adjustments.grain = 40
+        state.adjustments.vignette = 30
+        state.curves = ChannelCurves(master: .defaultS)
+        state.look = .filmStock(id: "portra400")
+        state.qualifier = qualifier
+        stages.append(("full pipeline", GradePipeline.image(from: source, applying: state)))
+
+        for stage in stages {
+            check.expect(
+                !stage.image.extent.isInfinite,
+                """
+                \(stage.name): infinite extent — this stage covers the canvas \
+                surround, not just the photograph
+                """
+            )
+            check.expect(
+                stage.image.extent == extent,
+                "\(stage.name): extent became \(stage.image.extent), expected \(extent)"
+            )
+        }
+
+        return check.finish()
+    }
+
+    /// The canvas surround stays neutral whatever the grade.
+    ///
+    /// Guards a bug a user saw and the extent checks did not: choosing a look
+    /// tinted the whole window, surround included. This composes a *graded*
+    /// image into a larger canvas and reads the corners, which is precisely what
+    /// the eye does when the app is open.
+    ///
+    /// Written this way after a synthetic extent check failed to reproduce it.
+    /// Checking a stage's extent in isolation and checking what reaches the
+    /// screen are different questions, and only the second one is the one being
+    /// asked.
+    static func surroundPurityCheck(_ context: RenderContext) -> CheckResult {
+        var check = Checker(suite: "Render", name: "the canvas surround stays neutral under any grade")
+
+        // A canvas larger than the photograph, so there is surround to inspect.
+        let canvas = CGRect(x: 0, y: 0, width: 96, height: 96)
+
+        // Backed by real pixels rather than `CIImage(color:)`.
+        //
+        // A colour image is a generator with infinite extent that has been
+        // cropped, and it does not behave like a decoded photograph through a
+        // colour cube — an earlier version of this check reported the surround
+        // shifting by six codes on a path that is demonstrably clean when a real
+        // file is rendered. The false positive cost more time than the check
+        // saves, so the fixture matches what the app actually loads.
+        let photograph = bitmapPatch(
+            r: 180, g: 140, b: 110,
+            size: CGSize(width: 64, height: 24)
+        )
+
+        let expected = sRGBByte(from: CanvasComposition.surround)
+
+        var cases: [(name: String, image: CIImage)] = [("ungraded", photograph)]
+
+        for id in ["portra400", "velvia50", "trix400", "tealOrange"] {
+            guard let stock = FilmStock.stock(id: id) else { continue }
+            var state = EditState()
+            state.look = .filmStock(id: id)
+            cases.append(("look \(id)", GradePipeline.image(from: photograph, applying: state)))
+        }
+
+        var graded = EditState()
+        graded.adjustments.exposure = 40
+        graded.adjustments.saturation = 60
+        graded.curves = ChannelCurves(master: .defaultS)
+        graded.look = .filmStock(id: "portra400")
+        cases.append(("full grade", GradePipeline.image(from: photograph, applying: graded)))
+
+        for (name, image) in cases {
+            let composed = CanvasComposition.compose(image, in: canvas)
+            let bytes = context.renderToBytes(composed, in: canvas, colorSpace: sRGB)
+
+            guard bytes.count == Int(canvas.width * canvas.height) * 4 else {
+                check.fail("\(name): rendered \(bytes.count) bytes")
+                continue
+            }
+
+            // The corners are as far from the photograph as the canvas goes.
+            let corners = [
+                (0, 0), (Int(canvas.width) - 1, 0),
+                (0, Int(canvas.height) - 1), (Int(canvas.width) - 1, Int(canvas.height) - 1),
+            ]
+
+            for (x, y) in corners {
+                let offset = (y * Int(canvas.width) + x) * 4
+                check.expectWithin(
+                    Double(bytes[offset]), expected.r, codes: 2,
+                    "\(name): corner (\(x),\(y)) red — the grade has reached the surround"
+                )
+                check.expectWithin(
+                    Double(bytes[offset + 1]), expected.g, codes: 2,
+                    "\(name): corner (\(x),\(y)) green — the grade has reached the surround"
+                )
+            }
         }
 
         return check.finish()

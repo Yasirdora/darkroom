@@ -26,6 +26,25 @@ public struct AdjustmentSlider: View {
 
     @State private var isDragging = false
 
+    /// When and where the last click-without-movement ended.
+    ///
+    /// Double-click is detected inside the drag rather than by a `TapGesture`,
+    /// and the reason is latency. A high-priority tap makes SwiftUI hold the
+    /// drag back until it knows a second tap is not coming — which delays the
+    /// *start of every drag* by the double-click interval. On a control whose
+    /// whole job is to track the cursor, that is the difference between a slider
+    /// that feels attached to the pointer and one that feels like it is
+    /// thinking. Recognising the pattern here costs nothing.
+    @State private var lastClick: (time: Date, x: CGFloat)?
+    @State private var dragOrigin: CGFloat = 0
+    @State private var movedFar = false
+
+    /// How much movement still counts as a click rather than a drag.
+    private static let clickSlop: CGFloat = 2
+
+    /// The window a second click has to land in, matching the system default.
+    private static let doubleClickInterval: TimeInterval = 0.5
+
     public init(
         key: Adjustments.Key,
         value: Binding<Double>,
@@ -37,6 +56,13 @@ public struct AdjustmentSlider: View {
     }
 
     private var isNeutral: Bool { value == key.neutralValue }
+
+    /// Whether a click completes a double-click.
+    private func isSecondClick(at x: CGFloat) -> Bool {
+        guard let lastClick else { return false }
+        return Date().timeIntervalSince(lastClick.time) < Self.doubleClickInterval
+            && abs(x - lastClick.x) <= Self.clickSlop * 2
+    }
 
     /// Returns the control to rest, animated.
     ///
@@ -73,17 +99,6 @@ public struct AdjustmentSlider: View {
             track
         }
         .contentShape(Rectangle())
-        // Double-click resets, and it has to be attached *before* the drag
-        // gesture wins the arbitration — a `DragGesture(minimumDistance: 0)` on
-        // the track claims taps too, so a double-click there did nothing at all.
-        // `highPriorityGesture` gives the tap first refusal without weakening
-        // the drag.
-        .highPriorityGesture(
-            TapGesture(count: 2).onEnded {
-                guard value != key.neutralValue else { return }
-                resetToNeutral()
-            }
-        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(key.title)
         .accessibilityValue(key.accessibilityValue(value))
@@ -157,15 +172,34 @@ public struct AdjustmentSlider: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
-                        isDragging = true
-                        let position = (gesture.location.x / width)
-                            .clamped(to: 0...1)
+                        if !isDragging {
+                            isDragging = true
+                            dragOrigin = gesture.startLocation.x
+                        }
+                        movedFar = movedFar
+                            || abs(gesture.translation.width) > Self.clickSlop
+
+                        let position = (gesture.location.x / width).clamped(to: 0...1)
                         let raw = key.range.lowerBound
                             + position * (key.range.upperBound - key.range.lowerBound)
                         value = (raw / key.step).rounded() * key.step
                     }
-                    .onEnded { _ in
+                    .onEnded { gesture in
                         isDragging = false
+                        let wasClick = !movedFar
+                        movedFar = false
+
+                        if wasClick, isSecondClick(at: gesture.location.x) {
+                            lastClick = nil
+                            resetToNeutral()
+                            return
+                        }
+
+                        if wasClick {
+                            lastClick = (Date(), gesture.location.x)
+                        } else {
+                            lastClick = nil
+                        }
                         onCommit()
                     }
             )
