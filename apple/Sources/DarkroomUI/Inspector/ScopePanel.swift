@@ -14,12 +14,20 @@ public struct ScopePanel: View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(title: "Histogram")
             HistogramView(histogram: editor.histogram)
+                // `.equatable()` so these redraw only when the measurement
+                // changes. Without it every observable change on the editor —
+                // moving a slider, or merely clicking zoom — redraws both
+                // scopes, and the vectorscope is thousands of fills. That was
+                // the cause of zoom feeling like it hung: nothing about the
+                // render was slow, the panel beside it was being rebuilt.
+                .equatable()
                 .frame(height: 120)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
 
             SectionHeader(title: "Vectorscope")
             VectorscopeView(vectorscope: editor.vectorscope)
+                .equatable()
                 .aspectRatio(1, contentMode: .fit)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
@@ -35,7 +43,7 @@ public struct ScopePanel: View {
 }
 
 /// Tonal distribution, all four channels overlaid.
-public struct HistogramView: View {
+public struct HistogramView: View, Equatable {
 
     public let histogram: Histogram
 
@@ -122,7 +130,7 @@ public struct HistogramView: View {
 }
 
 /// Chroma distribution on the Cb/Cr plane.
-public struct VectorscopeView: View {
+public struct VectorscopeView: View, Equatable {
 
     public let vectorscope: Vectorscope
 
@@ -194,11 +202,25 @@ public struct VectorscopeView: View {
         )
     }
 
+    /// Draws the chroma trace.
+    ///
+    /// Bins are grouped into a handful of intensity bands and each band drawn as
+    /// a single path, rather than one fill per bin. A 96×96 scope is 9,216 bins,
+    /// and nine thousand separate fills through `GraphicsContext` is slow enough
+    /// to be felt — it made an unrelated click elsewhere in the window appear to
+    /// hang, because the panel was being rebuilt behind it.
+    ///
+    /// Banding costs nothing visible: the trace is read as a shape and a
+    /// density, and the eye does not resolve a continuous alpha ramp across
+    /// two-pixel cells.
     private func drawTrace(context: GraphicsContext, size: CGSize) {
         guard vectorscope.peak > 0 else { return }
 
         let cell = size.width / Double(vectorscope.size)
         let peak = Double(vectorscope.peak)
+        let bandCount = 6
+
+        var bands = [Path](repeating: Path(), count: bandCount)
 
         for y in 0..<vectorscope.size {
             for x in 0..<vectorscope.size {
@@ -208,14 +230,17 @@ public struct VectorscopeView: View {
                 // Square root again: without it a single dominant colour
                 // saturates the plot and everything else vanishes.
                 let intensity = (Double(count) / peak).squareRoot()
-                context.fill(
-                    Path(CGRect(
-                        x: Double(x) * cell, y: Double(y) * cell,
-                        width: cell + 0.5, height: cell + 0.5
-                    )),
-                    with: .color(.green.opacity(intensity * 0.85))
-                )
+                let band = min(bandCount - 1, Int(intensity * Double(bandCount)))
+                bands[band].addRect(CGRect(
+                    x: Double(x) * cell, y: Double(y) * cell,
+                    width: cell + 0.5, height: cell + 0.5
+                ))
             }
+        }
+
+        for (index, path) in bands.enumerated() where !path.isEmpty {
+            let intensity = Double(index + 1) / Double(bandCount)
+            context.fill(path, with: .color(.green.opacity(intensity * 0.85)))
         }
     }
 }

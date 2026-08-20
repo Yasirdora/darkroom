@@ -33,6 +33,7 @@ do {
             + RenderChecks.all()
             + ScopeChecks.all()
             + QualifierChecks.all()
+            + CurveEditingChecks.all()
     )
     print(report.formatted(verbose: verbose))
     exit(report.passed ? 0 : 1)

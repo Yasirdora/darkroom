@@ -235,6 +235,25 @@ func main() throws {
         editor.update({ $0.look = .filmStock(id: "portra400") }, label: "reset")
     }
 
+    // Zoom render cost, measured rather than assumed.
+    if editor.hasImage, let graded = editor.renderedImage {
+        let target = CGRect(x: 0, y: 0, width: 1400, height: 900)
+        print("\nZoom render cost (1400x900 drawable, 2x backing):")
+        for zoom in [nil, 1.0, 2.0, 4.0, 8.0] as [Double?] {
+            let composed = CanvasComposition.compose(
+                graded, in: target, zoom: zoom, contentScale: 2
+            )
+            let started = Date()
+            _ = editor.renderContext.renderToBytes(composed, in: target)
+            let elapsed = Date().timeIntervalSince(started)
+            // %s with a Swift String is undefined behaviour — it expects a C
+            // string, and passing one crashes. Interpolation instead.
+            let label = zoom.map { "\(Int($0))x" } ?? "fit"
+            print("  \(label.padding(toLength: 6, withPad: " ", startingAt: 0))"
+                + String(format: "%6.0f ms", elapsed * 1000))
+        }
+    }
+
     // The empty state deserves its own look. It is the first thing anyone sees,
     // and it is the screen most often left unconsidered.
     try render(

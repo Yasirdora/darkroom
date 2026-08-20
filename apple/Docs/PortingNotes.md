@@ -762,3 +762,62 @@ right every time.
 **The rule:** when someone reports something a test cannot reproduce, suspect the
 fixture before the report. A synthetic input is a hypothesis about what matters,
 and it is exactly the hypothesis under question.
+
+---
+
+## A curve editor that drew but did not respond
+
+Shipped broken, and the reason is worth writing down plainly: it was verified by
+rendering a snapshot of it. A snapshot proves a view *draws*. It says nothing
+about whether it *responds*, and it was presented as though it did.
+
+Two defects, both in gesture plumbing:
+
+**A `DragGesture(minimumDistance: 0)` and an `onTapGesture` on the same view do
+not coexist.** The drag wins arbitration and the tap never fires, so points could
+not be added. This exact conflict had already been found and fixed in
+`AdjustmentSlider` a few days earlier, and was then reintroduced here.
+
+**A drag inside a `ScrollView` belongs to the ScrollView.** The plot sits in the
+inspector's scroll view, so dragging a point scrolled the panel. `.gesture` is
+not enough; `.highPriorityGesture` is.
+
+Both are now one gesture that tells a tap from a drag by whether the pointer
+moved — the same shape `AdjustmentSlider` uses, since that one demonstrably
+works.
+
+### Geometry moved out of the view so it can be checked
+
+`CurveEditing` holds the rules — which point is under the cursor, where a
+dragged point may go, which points may be removed — as free functions over
+`[ControlPoint]`. `CurveEditingChecks` covers grabbing on and off centre,
+endpoints keeping their x, interior points refusing to cross their neighbours,
+insertion staying sorted, endpoint removal being refused, and edited curves
+remaining renderable and bakeable.
+
+Whether a gesture *reaches* the view is still a question about SwiftUI that only
+running the app answers. Everything the gesture does once it arrives is geometry,
+and geometry does not need a screen.
+
+---
+
+## Zoom that appeared to hang
+
+Nothing about zooming was slow. Rendering the canvas measures 9–11 ms at every
+level from fit to 8× — the 342 ms seen once is first-call warm-up.
+
+The cost was **beside** the canvas. `Editor` is a single `@Observable`, so any
+change to it — including `zoom`, which no scope depends on — invalidates the
+whole window body and redraws the inspector. The vectorscope drew **9,216
+separate fills** through `GraphicsContext`, one per bin, on every one of those
+redraws.
+
+Two fixes. The scope views are `Equatable` and applied with `.equatable()`, so
+they redraw only when a measurement actually changes. And the trace groups bins
+into six intensity bands drawn as six paths instead of nine thousand fills;
+banding costs nothing visible, because a vectorscope is read as a shape and a
+density rather than as a continuous alpha ramp across two-pixel cells.
+
+**The general lesson:** with a single observable model, an unrelated property
+change redraws everything observing it. Anything expensive to draw needs to be
+able to say it has not changed.

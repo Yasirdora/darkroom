@@ -24,6 +24,7 @@ struct ConformanceTests {
         try ColorScienceChecks.all() + GradingChecks.all() + FilmChecks.all()
             + GradeShareChecks.all() + RenderChecks.all() + ScopeChecks.all()
             + QualifierChecks.all()
+            + CurveEditingChecks.all()
     }
 
     static var results: [CheckResult] {
