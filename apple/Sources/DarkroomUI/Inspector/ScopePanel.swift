@@ -12,6 +12,24 @@ public struct ScopePanel: View {
 
     public var body: some View {
         GlassPaneStack {
+            InspectorCard(
+                title: "Histogram",
+                id: "scope.histogram",
+                editor: editor,
+                accessory: { CanvasScopeToggle(editor: editor) }
+            ) {
+                HistogramView(histogram: editor.histogram)
+                    // `.equatable()` so these redraw only when the measurement
+                    // changes. Without it every observable change on the editor
+                    // — moving a slider, or merely clicking zoom — redraws both
+                    // scopes, and the vectorscope is thousands of fills. That
+                    // was the cause of zoom feeling like it hung: nothing about
+                    // the render was slow, the panel beside it was being
+                    // rebuilt.
+                    .equatable()
+                    .frame(height: 120)
+            }
+
             InspectorCard(title: "Vectorscope", id: "scope.vectorscope", editor: editor) {
                 VStack(alignment: .leading, spacing: 8) {
                     VectorscopeView(vectorscope: editor.vectorscope)
@@ -24,25 +42,54 @@ public struct ScopePanel: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-
-            // The histogram used to sit above this, which meant the app was
-            // drawing one in three places at once. It has one home now — over
-            // the photograph, where it is actually read — and a footnote rather
-            // than a pane of its own, because a titled box saying "it is
-            // elsewhere" is a signpost standing where the thing should be.
-            //
-            // The third, behind the tone curve, was never a duplicate of
-            // either: it is the curve's own reference, showing where an image's
-            // tones fall against the line being pulled through them. It is read
-            // with the curve or not at all.
-            Text("The histogram floats over the photograph. ⇧⌘H shows or hides it.")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, InspectorGeometry.paneInset)
-                .padding(.top, 2)
         }
         .padding(.horizontal, InspectorGeometry.panelInset)
+    }
+}
+
+/// Pins the histogram over the photograph as well as showing it here.
+///
+/// The same measurement appears in two places, and the control that governs
+/// that lives on the pane where you would look for it rather than only in a
+/// menu. Which turns two histograms into one instrument with a choice about
+/// where it is shown — the copies are no longer independent things that drifted
+/// into existence separately, and the relationship between them is stated in
+/// the interface instead of having to be worked out.
+///
+/// The panel copy is the detailed one, read deliberately. The floating copy is
+/// a glance, read without looking away from the picture.
+struct CanvasScopeToggle: View {
+
+    @Bindable var editor: Editor
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button {
+            withAnimation(.smooth(duration: 0.24)) {
+                editor.showsCanvasScope.toggle()
+            }
+        } label: {
+            Image(systemName: editor.showsCanvasScope ? "pin.fill" : "pin")
+                .font(.system(size: 10, weight: .semibold))
+                // Fixed, so the two symbols cannot lay out differently and
+                // nudge the title beside them.
+                .frame(width: 20, height: 20)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(tint)
+        .onHover { isHovering = $0 }
+        .help(editor.showsCanvasScope
+            ? "Stop showing the histogram over the photograph (⇧⌘H)"
+            : "Also show the histogram over the photograph (⇧⌘H)")
+        .accessibilityLabel("Histogram over the photograph")
+        .accessibilityValue(editor.showsCanvasScope ? "Shown" : "Hidden")
+    }
+
+    private var tint: Color {
+        if editor.showsCanvasScope { return .accentColor }
+        return isHovering ? .primary : .secondary
     }
 }
 

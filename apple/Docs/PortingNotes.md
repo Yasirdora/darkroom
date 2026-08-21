@@ -1257,23 +1257,38 @@ The check also asserts the opposite error — that the pane drew *something* —
 because a clip so aggressive that nothing showed would pass a leak test while
 being far worse.
 
-## One instrument, one home
+## One instrument, two viewing distances
 
 The app was drawing a histogram in three places: floating over the canvas, at
-the top of the Scopes tab, and behind the tone curve. The first two were the
-same readout twice, added in successive sessions without removing the earlier
-one — a duplication nobody designed, which is how most duplication arrives.
+the top of the Scopes tab, and behind the tone curve. The first two arrived in
+successive sessions without the earlier one being removed — duplication nobody
+designed, which is how most of it arrives.
 
-The histogram now lives over the photograph, where it is read while adjusting.
-The Scopes tab keeps the vectorscope, which needs room and is not consulted
-continuously, and carries a one-line footnote saying where the histogram went —
-a line rather than a titled pane, because a box announcing "it is elsewhere" is
-a signpost standing exactly where the thing should be.
+The first attempt at a fix deleted the panel copy. That was the wrong cut, and
+the user said so. Two copies are right; what was missing was any *relationship*
+between them:
 
-The third was never a duplicate. The histogram behind the tone curve is the
-curve's own reference: it shows where an image's tones fall against the line
+- The **panel** copy is the detailed one, read deliberately, at a size worth
+  studying and beside the vectorscope for comparison.
+- The **floating** copy is a glance, read without looking away from the picture,
+  while a hand is on a slider.
+
+Those are two viewing distances on one instrument, not one instrument twice — a
+distinction that only holds if the interface states it. So the Histogram pane's
+title line carries a pin that governs the floating copy. The control that
+relates them now sits where someone would look for it, and the copies stop being
+independent things that happen to show the same numbers.
+
+The third was never a duplicate at all. The histogram behind the tone curve is
+the curve's own reference: it shows where an image's tones fall against the line
 being pulled through them, and it is read with the curve or not at all. Every
-serious curve editor draws it and none of them consider it a second histogram.
+serious curve editor draws it and none of them count it as a second histogram.
+
+The lesson worth keeping is about the diagnosis rather than the fix. "Two of
+these exist" was a real observation and the reflex — delete one — was wrong.
+Redundancy and duplication look identical from a distance: the question is
+whether the copies serve different readings, and if they do the fix is to make
+that visible, not to remove one.
 
 ## Audited against the guidelines, and two things were wrong
 
