@@ -135,8 +135,25 @@ enum LayoutStability {
     }
 
     /// Runs the checks and reports. Returns whether everything held still.
+    ///
+    /// Both materials, not just the one being rendered. Liquid Glass cannot be
+    /// *photographed* offscreen, but it can still be measured — and a material
+    /// that quietly changed a control's intrinsic size would reintroduce
+    /// exactly the fault these checks exist for, on the one path that no
+    /// snapshot can show.
     static func report() -> Bool {
-        let failures = check()
+        let wasLegacy = InspectorMaterial.prefersLegacy
+        defer { InspectorMaterial.prefersLegacy = wasLegacy }
+
+        var failures: [Failure] = []
+        for legacy in [true, false] {
+            InspectorMaterial.prefersLegacy = legacy
+            let material = legacy ? "pre-26 material" : "Liquid Glass"
+            failures += check().map {
+                Failure(control: "\($0.control) [\(material)]", states: $0.states, sizes: $0.sizes)
+            }
+        }
+
         guard failures.isEmpty else {
             print("\nLayout stability — FAIL")
             for failure in failures {
@@ -146,7 +163,7 @@ enum LayoutStability {
             }
             return false
         }
-        print("\nLayout stability — every control holds its size at every value.")
+        print("\nLayout stability — every control holds its size at every value, in both materials.")
         return true
     }
 

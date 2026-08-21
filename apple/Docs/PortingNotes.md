@@ -1074,3 +1074,60 @@ costume: **a measurement that cannot distinguish the fault from its absence is
 not evidence.** A green result from an instrument that was never shown to go red
 says nothing at all, which is why every check here is run against a deliberately
 broken version before it is believed.
+
+## macOS 26, and the one thing that cannot be photographed
+
+The inspector adopts Liquid Glass where the system can draw it, with the
+previous hand-built material still there below macOS 26. Progressive
+enhancement rather than a raised deployment target: macOS 26 is current, but
+dropping everyone on 14 and 15 to gain a material is a poor trade for a tool
+meant to be worked in daily.
+
+Alongside the material, the parts of the language that are *geometry* rather
+than compositing:
+
+- **Concentric radii.** A shape nested inside another takes the outer radius
+  less the inset between them. Get it wrong and the gap pinches at the corners
+  — the commonest way a rounded interface looks subtly off with nobody able to
+  say why. `InspectorGeometry` derives it once instead of scattering constants.
+- **No hard dividers.** Content dissolves as it scrolls under the tabs, via
+  `scrollEdgeEffectStyle`. The rule it replaces was the last thing in the panel
+  that looked drawn on rather than lit.
+- **A selection that travels.** The lit surface behind the selected tab carries
+  a `glassEffectID`, so it moves between tabs as one surface instead of cutting.
+  `matchedGeometryEffect` does the same below 26.
+- **Rounder, with more air.** Panes at 14, spaced 12. Glass needs room; two
+  glass surfaces close together read as one thick slab and the grouping is lost.
+
+The material is tinted slightly toward black. Liquid Glass takes its lightness
+from its surroundings, and the surroundings here are a photograph under
+judgement — so it is given a floor it cannot rise above rather than being left
+to follow the picture.
+
+### The verification gap, stated plainly
+
+**Liquid Glass cannot be captured by `cacheDisplay`.** Sampling a backdrop needs
+the window server; `cacheDisplay` walks the view hierarchy without the
+compositor, so every glass surface comes back opaque white with black text over
+it. Screen recording is not available in this environment, so there is no second
+method.
+
+This was diagnosed rather than assumed: disabling the glass path restored a
+correct render, and disabling `GlassEffectContainer` alone did not — so it is
+`.glassEffect` itself, which is exactly what a backdrop filter would do.
+
+The cost is not cosmetic. Being able to *look* at the interface is how the last
+several layout faults were found, and losing it to gain a material would be a
+bad trade. So the older material stays reachable, `darkroom-snapshot` selects it
+by default, and offscreen review keeps working on a surface that is
+geometrically identical. `--glass` renders the real thing anyway, to confirm now
+and then that the limitation has not become something else.
+
+`--layout` measures **both** materials. Glass cannot be photographed but it can
+still be measured, and a material that quietly changed a control's intrinsic
+size would reintroduce the layout-shift fault on the one path no snapshot can
+show.
+
+What remains true, and is worth not dressing up: the Liquid Glass path is the
+only thing in this inspector that has never been seen by anything except the
+person running the app.

@@ -17,8 +17,6 @@ struct AutoWhiteBalanceButton: View {
     /// sliders while the button sits on the title line.
     @Binding var estimate: NeutralSampler.Estimate?
 
-    @State private var isHovering = false
-
     var body: some View {
         Button {
             estimate = editor.autoWhiteBalance()
@@ -29,18 +27,9 @@ struct AutoWhiteBalanceButton: View {
                 Text("Auto")
                     .font(.system(size: 10, weight: .semibold))
             }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GlassCapsuleButtonStyle(isEnabled: editor.hasImage))
         .foregroundStyle(editor.hasImage ? Color.accentColor : Color.secondary)
-        .background {
-            Capsule().fill(
-                Color.accentColor.opacity(editor.hasImage && isHovering ? 0.22 : 0.13)
-            )
-        }
-        .onHover { isHovering = $0 }
         .disabled(!editor.hasImage)
         .help("Neutralise the cast, measured from the image")
         .accessibilityLabel("Auto white balance")

@@ -30,6 +30,15 @@ func render<V: View>(_ view: V, size: NSSize, to url: URL) throws {
         backing: .buffered,
         defer: false
     )
+    // Set on the window, not left to the environment.
+    //
+    // A command-line tool has no bundle and does not inherit the system
+    // appearance, and — more importantly — `.environment(\.colorScheme, .dark)`
+    // does not change `NSAppearance` at all. It tells SwiftUI which colours to
+    // resolve; it does not tell AppKit which materials to draw. Anything backed
+    // by AppKit — a visual effect view, Liquid Glass — reads the appearance and
+    // would come out light beside a dark interface.
+    window.appearance = NSAppearance(named: .darkAqua)
     window.contentView = hosting
     hosting.layoutSubtreeIfNeeded()
 
@@ -261,6 +270,18 @@ func main() throws {
         size: NSSize(width: 1280, height: 820),
         to: directory.appending(path: "window-empty.png")
     )
+}
+
+// Liquid Glass cannot be captured by `cacheDisplay`: sampling a backdrop needs
+// the compositor, and without it every glass surface comes back opaque white.
+// The pre-26 material is geometrically identical, so rendering that keeps these
+// snapshots useful for everything they are actually used for — spacing,
+// alignment, hierarchy, whether a panel reads at a glance.
+//
+// `--glass` renders the real thing anyway, which is worth doing once in a while
+// to confirm the limitation has not quietly become something else.
+MainActor.assumeIsolated {
+    InspectorMaterial.prefersLegacy = !CommandLine.arguments.contains("--glass")
 }
 
 do {

@@ -11,7 +11,7 @@ public struct ScopePanel: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        GlassPaneStack {
             InspectorCard(title: "Histogram", id: "scope.histogram", editor: editor) {
                 HistogramView(histogram: editor.histogram)
                 // `.equatable()` so these redraw only when the measurement
@@ -37,7 +37,7 @@ public struct ScopePanel: View {
                 }
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, InspectorGeometry.panelMargin)
     }
 }
 

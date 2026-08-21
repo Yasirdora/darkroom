@@ -20,7 +20,7 @@ public struct LookPicker: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        GlassPaneStack {
             if !editor.state.look.isNone {
                 InspectorCard(
                     title: "Applied Look",
@@ -61,7 +61,7 @@ public struct LookPicker: View {
                 }
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, InspectorGeometry.panelMargin)
     }
 
     /// Shown only when a look is applied — an intensity control with nothing to

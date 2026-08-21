@@ -16,6 +16,10 @@ public struct InspectorView: View {
     /// when a correction came from very little of the frame.
     @State private var whiteBalanceEstimate: NeutralSampler.Estimate?
 
+    /// Ties the selected tab's lit surface to one identity, so it travels
+    /// between tabs rather than cutting.
+    @Namespace private var tabSelection
+
     public init(editor: Editor) {
         self.editor = editor
     }
@@ -23,7 +27,6 @@ public struct InspectorView: View {
     public var body: some View {
         VStack(spacing: 0) {
             header
-            Divider().opacity(0.4)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -37,11 +40,14 @@ public struct InspectorView: View {
                 .padding(.vertical, 12)
             }
             .scrollIndicators(.automatic)
+            // Content dissolves as it passes under the tabs instead of being
+            // cut by a rule. The rule was the last thing in this panel that
+            // looked drawn on rather than lit.
+            .inspectorScrollEdge()
 
-            Divider().opacity(0.4)
             footer
         }
-        .frame(width: 290)
+        .frame(width: InspectorGeometry.panelWidth)
         .background {
             // Vibrancy from behind the *window*, not from the photograph.
             // Sampling the image would tint the panel with whatever is on the
@@ -65,11 +71,21 @@ public struct InspectorView: View {
     private var header: some View {
         HStack(spacing: 2) {
             ForEach(Editor.InspectorTab.allCases) { tab in
+                let isSelected = editor.inspectorTab == tab
                 Button {
-                    editor.inspectorTab = tab
+                    // Glass morphs between shapes when the change is animated
+                    // and the shapes share an identity. Without this the
+                    // selection cuts from one tab to the next; with it the lit
+                    // surface travels, which is how the eye follows a selection
+                    // rather than re-finding it.
+                    withAnimation(.snappy(duration: 0.28, extraBounce: 0.05)) {
+                        editor.inspectorTab = tab
+                    }
                 } label: {
                     VStack(spacing: 3) {
-                        Image(systemName: tab.symbol).font(.system(size: 13))
+                        Image(systemName: tab.symbol)
+                            .font(.system(size: 13))
+                            .symbolVariant(isSelected ? .fill : .none)
                         Text(tab.title).font(.system(size: 10, weight: .medium))
                     }
                     .frame(maxWidth: .infinity)
@@ -77,15 +93,14 @@ public struct InspectorView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(editor.inspectorTab == tab ? Color.accentColor : .secondary)
+                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                 .background {
-                    if editor.inspectorTab == tab {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.accentColor.opacity(0.12))
+                    if isSelected {
+                        TabSelection(namespace: tabSelection)
                     }
                 }
                 .accessibilityLabel(tab.title)
-                .accessibilityAddTraits(editor.inspectorTab == tab ? [.isSelected] : [])
+                .accessibilityAddTraits(isSelected ? [.isSelected] : [])
             }
         }
         .padding(.horizontal, 8)
@@ -96,7 +111,7 @@ public struct InspectorView: View {
     // MARK: - Adjustments
 
     private var adjustments: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        GlassPaneStack {
             InspectorCard(title: "Source", id: "source", editor: editor) {
                 InputProfileSection(editor: editor)
             }
@@ -144,7 +159,7 @@ public struct InspectorView: View {
                 }
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, InspectorGeometry.panelMargin)
     }
 
     // MARK: - Footer

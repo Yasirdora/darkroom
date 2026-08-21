@@ -45,11 +45,9 @@ struct VisualEffectBackground: NSViewRepresentable {
 /// eye find a section instead of scanning for it, and collapsing lets someone
 /// grading tone put colour out of sight entirely.
 ///
-/// The glass is built in layers, which is what separates it from a rounded grey
-/// rectangle: a translucent fill for body, a hairline border, and a highlight
-/// along the top edge only. That last one is doing most of the work — real
-/// glass catches light on its top edge, and without it the pane reads as
-/// painted on rather than sitting above the panel.
+/// The material comes from ``View/inspectorPane(cornerRadius:)``, which is
+/// Liquid Glass where the system can draw it and a hand-built approximation of
+/// the same idea below macOS 26.
 public struct InspectorCard<Content: View, Accessory: View>: View {
 
     public let title: String
@@ -115,38 +113,15 @@ public struct InspectorCard<Content: View, Accessory: View>: View {
 
             if isExpanded {
                 content()
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 14)
+                    .padding(.horizontal, InspectorGeometry.paneInset)
+                    .padding(.bottom, InspectorGeometry.paneInset)
                     // Fades on the way out and in, so a collapsing pane reads as
                     // its contents leaving rather than the pane snapping shut.
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(0.05))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
-        }
-        .overlay(alignment: .top) {
-            // The lit top edge. Two points tall and almost invisible on its
-            // own; take it away and the pane goes flat.
-            LinearGradient(
-                colors: [Color.white.opacity(0.10), Color.white.opacity(0)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 2)
-            .mask {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-            }
-            .allowsHitTesting(false)
-        }
-        .shadow(color: .black.opacity(0.22), radius: 3, y: 1)
-        .clipped(antialiased: true)
+        .inspectorPane()
     }
 
     private var header: some View {
@@ -193,9 +168,9 @@ public struct InspectorCard<Content: View, Accessory: View>: View {
                 .accessibilityHidden(!isModified)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 11)
-        .padding(.bottom, isExpanded ? 9 : 11)
+        .padding(.horizontal, InspectorGeometry.paneInset)
+        .padding(.top, 12)
+        .padding(.bottom, isExpanded ? 10 : 12)
         // The whole row toggles, not just the chevron — a 9-point chevron is a
         // target you have to aim at, and the title beside it reads as part of
         // the same control.

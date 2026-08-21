@@ -127,10 +127,17 @@ public struct CurveEditor: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(channel == option ? option.tint : .secondary)
                 .background {
-                    RoundedRectangle(cornerRadius: 5)
-                        .fill(channel == option
-                            ? option.tint.opacity(0.16)
-                            : Color.primary.opacity(0.05))
+                    // Concentric with the pane holding it: the pane's radius
+                    // less the inset between them. A constant radius here would
+                    // pinch the gap at the corners, which is the commonest way
+                    // a rounded interface looks subtly wrong.
+                    RoundedRectangle(
+                        cornerRadius: InspectorGeometry.nestedRadius,
+                        style: .continuous
+                    )
+                    .fill(channel == option
+                        ? option.tint.opacity(0.18)
+                        : Color.primary.opacity(0.05))
                 }
                 .accessibilityLabel(channelName(option))
                 .accessibilityAddTraits(channel == option ? [.isSelected] : [])
