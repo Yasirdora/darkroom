@@ -160,15 +160,28 @@ public struct CurveEditor: View {
 
             // A visible way to remove a point, not only a key. Delete works, but
             // a keyboard-only affordance is one nobody discovers.
-            if let index = selected, isRemovable(index) {
-                Button("Remove Point") { _ = removeSelected() }
-                    .font(.system(size: 10))
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
-                    .contentShape(Rectangle())
-            }
-
+            //
+            // Always in place, dimmed when there is nothing to remove. It used
+            // to appear on selection, which nudged the row every time a point
+            // was clicked — a footer that jumps while you work the plot above it
+            // is a distraction earned for nothing.
+            Button("Remove Point") { _ = removeSelected() }
+                .font(.system(size: 10))
+                .buttonStyle(.plain)
+                .foregroundStyle(canRemove ? Color.accentColor : Color.secondary.opacity(0.45))
+                .contentShape(Rectangle())
+                .disabled(!canRemove)
+                .accessibilityHidden(!canRemove)
         }
+        // One line, whatever it says. The hint changes with what is possible,
+        // and a two-line reading would otherwise lift the plot as it appeared.
+        .frame(height: 15)
+    }
+
+    /// Whether the selection is a point that may be removed.
+    private var canRemove: Bool {
+        guard let index = selected else { return false }
+        return isRemovable(index)
     }
 
     // MARK: - Plot

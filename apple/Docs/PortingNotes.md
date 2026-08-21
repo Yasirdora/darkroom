@@ -1028,3 +1028,49 @@ in `ColorGrade`, and a measured cast pushed through the real grading path has
 to come out narrower than it went in. Both would fail if the convention flipped
 anywhere along the chain; neither can be satisfied by the formula agreeing with
 itself.
+
+## Nothing moves except the thing being moved
+
+Reported after a redesign that passed every check in the suite: *"the UI shifts
+when I move sliders and the reset arrow appears."* Exactly right. Three views
+were inserted conditionally — a slider's reading, a pane's reset button, a
+footer's remove button — so the first pixel of a drag re-laid out the row under
+the pointer.
+
+The rule that replaces the judgement: **a control occupies the same space at
+every value it can hold.** Colour may change, weight may change, a thumb may
+grow. A view that is sometimes present is a view that moves everything around
+it, and it moves it at the worst possible moment — while the pointer is on it.
+
+Reserving the space costs almost nothing. A slider's reading is now always
+shown, dimmed at rest, in a frame wide enough for that key's widest value; the
+pane's reset is always in its place, dimmed until there is something to reset.
+Dimming keeps nearly all of the quiet the conditional rendering was buying.
+
+The exception, deliberately: the white balance caveat appears only after Auto is
+pressed. That is a disclosure in response to an explicit action, not a
+value-dependent shift, and it sits *below* the two sliders it qualifies so that
+reading it does not move them.
+
+## Measure the contents, not just the frame
+
+`darkroom-snapshot --layout` asserts the rule above by asking SwiftUI for a
+control's size at several values and comparing. The first version measured only
+at the real panel width, and **three of the four faults it was written for
+walked straight past it — including the one that was reported.**
+
+At a fixed width a `Spacer` swallows every horizontal change. Insert a reset
+button, remove a reading, add a dot: the row is still 242 points wide and still
+the same height, so the measurement sees nothing while the contents slide around
+inside it. The fix is to measure *unpinned* as well, where the row is only as
+wide as what it holds and anything appearing or vanishing changes the number
+immediately.
+
+Both measurements are taken. The constrained one catches a row growing taller;
+the unconstrained one catches everything else.
+
+The general lesson is the one already written down about fixtures, in another
+costume: **a measurement that cannot distinguish the fault from its absence is
+not evidence.** A green result from an instrument that was never shown to go red
+says nothing at all, which is why every check here is run against a deliberately
+broken version before it is believed.

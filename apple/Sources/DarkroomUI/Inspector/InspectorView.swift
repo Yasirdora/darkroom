@@ -118,11 +118,6 @@ public struct InspectorView: View {
                     }
                 ) {
                     VStack(spacing: 14) {
-                        if group == .whiteBalance {
-                            WhiteBalanceNote(estimate: whiteBalanceEstimate)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
                         ForEach(group.keys) { key in
                             AdjustmentSlider(
                                 key: key,
@@ -135,6 +130,15 @@ public struct InspectorView: View {
                                 ),
                                 onCommit: { editor.endInteraction() }
                             )
+                        }
+
+                        // Below the sliders, not above them. A caveat that
+                        // appears after pressing Auto would otherwise shove the
+                        // two controls it is about further down the pane, so
+                        // reading it would mean losing sight of them.
+                        if group == .whiteBalance {
+                            WhiteBalanceNote(estimate: whiteBalanceEstimate)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 }

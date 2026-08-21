@@ -264,6 +264,17 @@ func main() throws {
 }
 
 do {
+    // Layout stability runs first and on its own terms: it needs no output
+    // directory and no sample image, so `--layout` alone is enough to ask for
+    // it. Rendering PNGs is for looking at the interface; this is for asserting
+    // something about it.
+    if CommandLine.arguments.contains("--layout") {
+        let held = MainActor.assumeIsolated { LayoutStability.report() }
+        guard CommandLine.arguments.count > 2 else { exit(held ? 0 : 1) }
+        try MainActor.assumeIsolated { try main() }
+        exit(held ? 0 : 1)
+    }
+
     try MainActor.assumeIsolated { try main() }
 } catch {
     FileHandle.standardError.write(Data("\(error)\n".utf8))

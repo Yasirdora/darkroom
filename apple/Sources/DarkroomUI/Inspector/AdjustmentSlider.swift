@@ -57,6 +57,13 @@ public struct AdjustmentSlider: View {
 
     private var isNeutral: Bool { value == key.neutralValue }
 
+    /// Space reserved for the reading, per key rather than one width for all.
+    ///
+    /// Exposure reads in stops — "+2.00 EV" — and everything else in whole
+    /// slider units. Reserving the exposure width everywhere would push every
+    /// other label into the middle of the pane for no reason.
+    private var valueWidth: Double { key == .exposure ? 54 : 34 }
+
     /// Whether a click completes a double-click.
     private func isSecondClick(at x: CGFloat) -> Bool {
         guard let lastClick else { return false }
@@ -85,15 +92,26 @@ public struct AdjustmentSlider: View {
 
                 Spacer(minLength: 4)
 
-                // Only shown when it says something. A column of zeroes is
-                // noise that makes the two controls actually in use harder to
-                // find.
-                if !isNeutral {
-                    Text(formatted)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(.primary)
-                }
+                // Always present, dimmed at rest rather than absent.
+                //
+                // It used to appear only when the value left neutral, on the
+                // reasoning that a column of zeroes is noise. That reasoning
+                // was not wrong, but it was paid for in the worst possible
+                // currency: the row re-laid out the instant a drag began, so
+                // every adjustment started with the panel twitching under the
+                // pointer. Nothing about a control should move except the part
+                // being moved.
+                //
+                // Dimming buys back most of the quiet at none of that cost.
+                Text(formatted)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(isNeutral ? .tertiary : .primary)
+                    // Reserved to this key's widest reading, so the number does
+                    // not slide sideways as it grows a digit. Monospaced digits
+                    // hold the *glyphs* still; only a fixed frame holds the
+                    // field still.
+                    .frame(minWidth: valueWidth, alignment: .trailing)
             }
 
             track
@@ -252,6 +270,11 @@ public struct AdjustmentSlider: View {
 
     /// The value, in the units the control means.
     private var formatted: String {
+        // No sign on a value that has not moved. "+0" reads as a change of
+        // nothing rather than as nothing, and now that the reading is always on
+        // screen it is the resting state most of it will be seen in.
+        if isNeutral { return key == .exposure ? "0.00 EV" : "0" }
+
         if key == .exposure {
             // Stops, not slider units. A photographer thinks in stops, and the
             // internal ±100 is an implementation detail they should never meet.

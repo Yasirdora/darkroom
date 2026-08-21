@@ -50,37 +50,66 @@ struct VisualEffectBackground: NSViewRepresentable {
 /// along the top edge only. That last one is doing most of the work — real
 /// glass catches light on its top edge, and without it the pane reads as
 /// painted on rather than sitting above the panel.
-struct InspectorCard<Content: View, Accessory: View>: View {
+public struct InspectorCard<Content: View, Accessory: View>: View {
 
-    let title: String
+    public let title: String
 
     /// Identity for remembering whether this pane is open. Stable across
     /// launches, so it must not be the localised title.
-    let id: String
+    public let id: String
 
-    @Bindable var editor: Editor
+    @Bindable public var editor: Editor
 
     /// Shown only when the group has been touched, and clears just this group.
-    var reset: (() -> Void)?
-    var isModified: Bool = false
+    public var reset: (() -> Void)?
+    public var isModified: Bool = false
 
     /// Panes that are only ever open — the scopes, which are a readout rather
     /// than a group of controls.
-    var isCollapsible: Bool = true
+    public var isCollapsible: Bool = true
 
     /// A control belonging to the group as a whole rather than to any one row
     /// in it — Auto white balance, say. Sits on the title line, where Apple
     /// puts the same thing, because an action that applies to everything below
     /// it should not look like it belongs to the first row.
-    @ViewBuilder var accessory: () -> Accessory
+    @ViewBuilder public var accessory: () -> Accessory
 
-    @ViewBuilder var content: () -> Content
+    @ViewBuilder public var content: () -> Content
+
+    /// A pane with a control of its own on the title line.
+    public init(
+        title: String,
+        id: String,
+        editor: Editor,
+        reset: (() -> Void)? = nil,
+        isModified: Bool = false,
+        isCollapsible: Bool = true,
+        @ViewBuilder accessory: @escaping () -> Accessory,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.id = id
+        self.editor = editor
+        self.reset = reset
+        self.isModified = isModified
+        self.isCollapsible = isCollapsible
+        self.accessory = accessory
+        self.content = content
+    }
 
     @State private var isHoveringReset = false
 
+    /// Three states, not two: unavailable, available, and under the pointer.
+    /// The middle one has to be clearly live or the control reads as disabled
+    /// all the time.
+    private var resetTint: HierarchicalShapeStyle {
+        guard isModified else { return .quaternary }
+        return isHoveringReset ? .primary : .secondary
+    }
+
     private var isExpanded: Bool { !isCollapsible || editor.isSectionExpanded(id) }
 
-    var body: some View {
+    public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
 
@@ -133,19 +162,22 @@ struct InspectorCard<Content: View, Accessory: View>: View {
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(.primary)
 
-            // A collapsed pane still has to say whether anything is set inside
-            // it, or closing a group becomes a way to lose track of an edit.
-            if isModified, !isExpanded {
-                Circle()
-                    .fill(Color.accentColor)
-                    .frame(width: 5, height: 5)
-            }
-
             Spacer(minLength: 4)
 
             accessory()
 
-            if isModified, let reset {
+            // Always occupies its place; only its weight changes.
+            //
+            // Appearing on the first edit meant the title row re-laid out
+            // exactly as a slider was being dragged — the reset arrived, the
+            // title shifted, and the panel twitched under the pointer at the
+            // worst moment. A control that is sometimes there is a control that
+            // moves everything else, and reserving space costs a fifth of an
+            // inch that was doing nothing anyway.
+            //
+            // Its dimmed state also does the job the modified dot used to: a
+            // pane whose reset is live has something in it, collapsed or not.
+            if let reset {
                 Button(action: reset) {
                     Image(systemName: "arrow.counterclockwise")
                         .font(.system(size: 10, weight: .semibold))
@@ -153,10 +185,12 @@ struct InspectorCard<Content: View, Accessory: View>: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(isHoveringReset ? .primary : .tertiary)
+                .foregroundStyle(resetTint)
                 .onHover { isHoveringReset = $0 }
-                .help("Reset \(title)")
+                .disabled(!isModified)
+                .help(isModified ? "Reset \(title)" : "\(title) is already at its defaults")
                 .accessibilityLabel("Reset \(title)")
+                .accessibilityHidden(!isModified)
             }
         }
         .padding(.horizontal, 14)
@@ -180,7 +214,7 @@ struct InspectorCard<Content: View, Accessory: View>: View {
 }
 
 
-extension InspectorCard where Accessory == EmptyView {
+public extension InspectorCard where Accessory == EmptyView {
 
     /// A pane with nothing on its title line but the title.
     init(
