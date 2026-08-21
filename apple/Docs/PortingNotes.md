@@ -1337,3 +1337,77 @@ Clear exists to let *"the richness of the content underneath come through"* —
 which is the one thing a measuring instrument must not do. A scope that took
 colour from the image it is measuring would be worse than no scope. It stays a
 flat neutral fill, for the same reason the canvas surround is a fixed grey.
+
+## The print stage
+
+A measurement of all 59 looks found the fault behind "the effects seem quite
+subtle": **48 of 52 colour looks had a neutral-axis slope between 0.95 and
+1.10.** Contrast is the attribute the eye reads first, and it was the one
+attribute nothing touched — Velvia and Portra were separated by less than one
+notch of the Contrast slider.
+
+The cause was not a bug. It was an omission with a physical name. The model
+simulated exposure, development, dye cross-talk, scanning and timing — the whole
+negative — and a colour negative scanned neutral is *supposed* to look flat.
+That is what the orange-masked original is: a low-contrast recording with the
+shape still to come. Printing it through a positive stock is the step that puts
+the shape in, and it is the step everyone means by "the Portra look".
+
+`PrintProfile` is a logistic curve with a steepness and a pivot, applied after
+the scan and before the lab's colour timing — the order a darkroom works in. A
+logistic rather than a gamma because a print rolls off at *both* ends: paper has
+a maximum density and a base white, and neither is reached abruptly.
+
+It is normalised so 0 and 1 land exactly on themselves. Without that, every
+print would also be an exposure change and a stock's carefully placed toe lift
+would move whenever its contrast was adjusted.
+
+Grades are set per category rather than per stock, because what separates two
+Kodak stocks is in the *negative* — the curves, the dye matrix, the timing — and
+the print is the step they share. Ten stocks whose reputation is their contrast
+name their own: Velvia at 4.4, bleach bypass at 4.6, the matte portrait looks
+deliberately soft.
+
+| | before | after |
+|---|---|---|
+| median contrast | 1.04 | **1.14** |
+| range | 0.96 – 1.16 | **1.05 – 1.42** |
+| flat (0.95–1.10) | 47 of 52 | **9 of 52** |
+
+### One recommendation withdrawn on the evidence
+
+The audit also proposed re-tuning the split-tone strengths, on the grounds that
+a median cast of 12 codes was weak. Having implemented the print stage and
+looked at the distribution properly, that was wrong and is not being done.
+
+The looks at the bottom of the cast range are neutral *by design*: six black and
+white stocks at zero, bleach bypass at 1, "Matte — low saturation", "Studio —
+neutral backdrop feel". The median is pulled down by looks that should have no
+cast at all. Raising it by fiat would flatten a distinction that currently means
+something, on 59 hand-authored values, on a hunch. A number being low is not
+evidence that it is wrong.
+
+### Changing the reference implementation
+
+The film model is proven byte-identical between TypeScript and Swift, and the
+golden vectors are a sha256 of every stock's full 64³ LUT. So the order was
+forced and is worth recording:
+
+1. change the **TypeScript** engine, which is the reference;
+2. regenerate `reference/film-stocks.json` from it;
+3. regenerate the Swift stock data from the same source;
+4. port the stage to Swift and prove it byte-identical.
+
+Doing it the other way round would have meant regenerating the vectors from the
+implementation under test, which proves nothing. The diff confirmed the blast
+radius: `film-stocks.json` and the manifest changed, and nothing else did.
+
+Swift matched on the first run. That is a claim worth distrusting, so it was
+mutation-tested: a pivot off by 0.01, the stage moved before the scanner instead
+of after, the normalisation dropped, and the stage skipped. All four caught.
+
+**A note on where a shared grade renders.** Both engines had to change together,
+not because a test demanded it, but because a grade shared from the Mac app
+carries a look id and is rendered by whichever engine opens it. Had only Swift
+gained the print stage, the same link would have produced two different
+photographs.

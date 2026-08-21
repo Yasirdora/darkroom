@@ -31,6 +31,7 @@ extension FilmStock {
         vibrance: 0.04,
         halation: 0.03,
         halationWarmth: 0.65,
+        print: PrintProfile(contrast: 3.0, pivot: 0.45),
         grain: FilmGrainSpec(amount: 16.0, warmth: 0.4, size: 0.42),
         preservesSkinTones: false,
         isStylized: false
@@ -59,6 +60,7 @@ extension FilmStock {
         vibrance: 0.09,
         halation: 0.03,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 3.0, pivot: 0.45),
         grain: FilmGrainSpec(amount: 26.0, warmth: 0.45, size: 0.52),
         preservesSkinTones: false,
         isStylized: false
@@ -87,6 +89,7 @@ extension FilmStock {
         vibrance: 0.12,
         halation: 0.02,
         halationWarmth: 0.6,
+        print: PrintProfile(contrast: 4.4, pivot: 0.44),
         grain: FilmGrainSpec(amount: 6.0, warmth: 0.35, size: 0.25),
         preservesSkinTones: false,
         isStylized: false
@@ -115,6 +118,7 @@ extension FilmStock {
         vibrance: 0.07,
         halation: 0.02,
         halationWarmth: 0.65,
+        print: PrintProfile(contrast: 3.6, pivot: 0.45),
         grain: FilmGrainSpec(amount: 5.0, warmth: 0.35, size: 0.22),
         preservesSkinTones: false,
         isStylized: false
@@ -143,6 +147,7 @@ extension FilmStock {
         vibrance: 0.02,
         halation: 0.03,
         halationWarmth: 0.68,
+        print: PrintProfile(contrast: 3.0, pivot: 0.45),
         grain: FilmGrainSpec(amount: 10.0, warmth: 0.42, size: 0.36),
         preservesSkinTones: false,
         isStylized: false
@@ -171,6 +176,7 @@ extension FilmStock {
         vibrance: 0.02,
         halation: 0.02,
         halationWarmth: 0.6,
+        print: PrintProfile(contrast: 3.2, pivot: 0.45),
         grain: FilmGrainSpec(amount: 14.0, warmth: 0.4, size: 0.4),
         preservesSkinTones: false,
         isStylized: false
@@ -199,6 +205,7 @@ extension FilmStock {
         vibrance: 0.0,
         halation: 0.03,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 3.0, pivot: 0.45),
         grain: FilmGrainSpec(amount: 8.0, warmth: 0.55, size: 0.3),
         preservesSkinTones: false,
         isStylized: false

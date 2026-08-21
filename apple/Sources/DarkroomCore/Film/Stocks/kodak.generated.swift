@@ -31,6 +31,7 @@ extension FilmStock {
         vibrance: 0.05,
         halation: 0.04,
         halationWarmth: 0.75,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: FilmGrainSpec(amount: 18.0, warmth: 0.55, size: 0.45),
         preservesSkinTones: false,
         isStylized: false
@@ -59,6 +60,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.03,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.4, pivot: 0.46),
         grain: FilmGrainSpec(amount: 10.0, warmth: 0.5, size: 0.35),
         preservesSkinTones: false,
         isStylized: false
@@ -87,6 +89,7 @@ extension FilmStock {
         vibrance: 0.06,
         halation: 0.05,
         halationWarmth: 0.8,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: FilmGrainSpec(amount: 32.0, warmth: 0.6, size: 0.55),
         preservesSkinTones: false,
         isStylized: false
@@ -115,6 +118,7 @@ extension FilmStock {
         vibrance: 0.08,
         halation: 0.03,
         halationWarmth: 0.85,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: FilmGrainSpec(amount: 22.0, warmth: 0.7, size: 0.5),
         preservesSkinTones: false,
         isStylized: false
@@ -143,6 +147,7 @@ extension FilmStock {
         vibrance: 0.1,
         halation: 0.02,
         halationWarmth: 0.65,
+        print: PrintProfile(contrast: 4.0, pivot: 0.44),
         grain: FilmGrainSpec(amount: 8.0, warmth: 0.45, size: 0.3),
         preservesSkinTones: false,
         isStylized: false
@@ -171,6 +176,7 @@ extension FilmStock {
         vibrance: 0.07,
         halation: 0.03,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: FilmGrainSpec(amount: 24.0, warmth: 0.55, size: 0.5),
         preservesSkinTones: false,
         isStylized: false
@@ -199,6 +205,7 @@ extension FilmStock {
         vibrance: 0.04,
         halation: 0.04,
         halationWarmth: 0.72,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: FilmGrainSpec(amount: 14.0, warmth: 0.5, size: 0.4),
         preservesSkinTones: false,
         isStylized: false
@@ -227,6 +234,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.05,
         halationWarmth: 0.88,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: FilmGrainSpec(amount: 12.0, warmth: 0.48, size: 0.38),
         preservesSkinTones: false,
         isStylized: false

@@ -26,6 +26,33 @@ export interface FilmGrainSpec {
   size: number;
 }
 
+/**
+ * The print stage: exposing the developed negative through a positive stock.
+ *
+ * This is where a film look gets its contrast, and leaving it out is why a
+ * faithful negative simulation reads as flat. A colour negative scanned neutral
+ * is *supposed* to look washed — that is what the orange-masked original is,
+ * a low-contrast recording with the shape still to come. Printing it through
+ * a positive stock is the step that puts the shape in, and it is the step
+ * everyone means when they say "the Portra look".
+ *
+ * Measured before this existed: 48 of 52 colour looks had a neutral-axis slope
+ * between 0.95 and 1.10, so Velvia and Portra were separated by less than one
+ * notch of the contrast slider.
+ */
+export interface PrintProfile {
+  /**
+   * Steepness of the print's characteristic curve. 0 bypasses the stage.
+   *
+   * A logistic rather than a gamma, because a print rolls off at *both* ends —
+   * paper has a maximum density and a base white, and neither is reached
+   * abruptly. A gamma only shapes one end and clips the other.
+   */
+  contrast: number;
+  /** The tone the curve pivots about. Below it goes down, above it goes up. */
+  pivot: number;
+}
+
 export interface FilmStockProfile {
   id: FilterId;
   label: string;
@@ -46,6 +73,8 @@ export interface FilmStockProfile {
   vibrance: number;
   halation: number;
   halationWarmth: number;
+  /** Print stage. Absent means the negative is shown unprinted. */
+  print?: PrintProfile;
   grain?: FilmGrainSpec;
   /** Stylized presets use a lighter pipeline */
   stylized?: boolean;
@@ -221,6 +250,30 @@ const applyHalation = (
 };
 
 /** Renders one pixel through the full film emulation chain (exposure-aware). */
+/**
+ * Exposes one channel through the print stock.
+ *
+ * A logistic curve, normalised so that 0 and 1 land exactly on themselves. That
+ * normalisation matters more than it looks: without it every print would also
+ * be an exposure change, and a stock's carefully placed toe lift would move
+ * every time its contrast was adjusted.
+ *
+ * Monotonic for any positive steepness, so it can never fold the tone scale
+ * back on itself — the failure that turns a highlight darker than the midtone
+ * beside it.
+ */
+const applyPrint = (value: number, print: PrintProfile): number => {
+  if (print.contrast <= 1e-6) return value;
+  const k = print.contrast;
+  const p = print.pivot;
+  const f = (x: number): number => 1 / (1 + Math.exp(-k * (x - p)));
+  const lo = f(0);
+  const hi = f(1);
+  const span = hi - lo;
+  if (span <= 1e-9) return value;
+  return (f(value) - lo) / span;
+};
+
 export const renderFilmPixel = (
   r: number,
   g: number,
@@ -240,6 +293,15 @@ export const renderFilmPixel = (
 
   [cr, cg, cb] = applyDyeMatrix(cr, cg, cb, profile.dyeMatrix);
   [cr, cg, cb] = applyScanner(cr, cg, cb, profile.scanner, lum);
+
+  // Printed after the scan of the negative and before the lab's colour timing,
+  // which is the order the darkroom works in: the print establishes the tonal
+  // shape, then timing decides the balance printed into it.
+  if (profile.print) {
+    cr = applyPrint(cr / 255, profile.print) * 255;
+    cg = applyPrint(cg / 255, profile.print) * 255;
+    cb = applyPrint(cb / 255, profile.print) * 255;
+  }
 
   const preserveSkin = profile.skinPreserve === true;
   const preTiming: [number, number, number] = [cr, cg, cb];

@@ -31,6 +31,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.02,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true
@@ -59,6 +60,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.02,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true
@@ -87,6 +89,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.02,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true
@@ -115,6 +118,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.02,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true
@@ -143,6 +147,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.06,
         halationWarmth: 0.88,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true
@@ -171,6 +176,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.02,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true
@@ -199,6 +205,7 @@ extension FilmStock {
         vibrance: 0.08,
         halation: 0.02,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true
@@ -227,6 +234,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.02,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true
@@ -255,6 +263,7 @@ extension FilmStock {
         vibrance: 0.07,
         halation: 0.02,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true
@@ -283,6 +292,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.02,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true
@@ -311,6 +321,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.02,
         halationWarmth: 0.7,
+        print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: nil,
         preservesSkinTones: true,
         isStylized: true

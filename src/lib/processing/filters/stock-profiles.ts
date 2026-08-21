@@ -1,8 +1,48 @@
 import type { FilterCategory, FilterDefinition } from '../../core/types';
 import { buildLut } from '../lut';
-import { curve, dye, renderFilmPixel, type FilmStockProfile } from './film-model';
+import {
+  curve,
+  dye,
+  renderFilmPixel,
+  type FilmStockProfile,
+  type PrintProfile,
+} from './film-model';
 
-const stock = (profile: FilmStockProfile): FilmStockProfile => profile;
+/**
+ * Print stock by category, applied to any profile that does not name its own.
+ *
+ * Defaults rather than sixty hand-written values, because the differences that
+ * matter between stocks in the same family are in the negative — the curves,
+ * the dye matrix, the timing — and the print is the shared step they all pass
+ * through. Where a stock's reputation *is* its contrast, it says so itself.
+ *
+ * The numbers are steepness for a logistic curve; see `PrintProfile`. Roughly,
+ * 1.5 is a soft portrait paper and 3 is a punchy slide.
+ */
+const PRINT_BY_CATEGORY: Record<FilterCategory, PrintProfile> = {
+  // Portrait work is printed soft on purpose. Contrast in a face reads as
+  // hardness, and these looks exist to avoid exactly that — but "soft" is a
+  // comparison, not an absence, and at 1.5 they were merely absent.
+  portrait: { contrast: 2.4, pivot: 0.46 },
+  // Kodak's colour paper, pivoted slightly low so the shadows keep their body.
+  kodak: { contrast: 2.7, pivot: 0.45 },
+  // Fuji prints a touch harder, which is most of why the two houses are
+  // distinguishable at a glance.
+  fuji: { contrast: 3.0, pivot: 0.45 },
+  // Motion picture print stock is the most contrasty link in the whole chain —
+  // it is built to be projected through, not looked at.
+  cinema: { contrast: 3.4, pivot: 0.44 },
+  social: { contrast: 2.4, pivot: 0.46 },
+  classic: { contrast: 2.7, pivot: 0.45 },
+  // Printing grade, in the darkroom sense. Black and white paper is graded by
+  // contrast and nothing else.
+  bw: { contrast: 3.2, pivot: 0.45 },
+};
+
+const stock = (profile: FilmStockProfile): FilmStockProfile => ({
+  print: PRINT_BY_CATEGORY[profile.category],
+  ...profile,
+});
 
 // ─── Kodak ───────────────────────────────────────────────────────────────────
 
@@ -25,6 +65,8 @@ const KODAK_STOCKS: FilmStockProfile[] = [
   }),
   stock({
     id: 'portra160',
+    // The gentlest of the Portras.
+    print: { contrast: 2.4, pivot: 0.46 },
     label: 'Portra 160',
     category: 'kodak',
     description: 'Fine grain portrait · soft pastels',
@@ -73,6 +115,8 @@ const KODAK_STOCKS: FilmStockProfile[] = [
   }),
   stock({
     id: 'ektar100',
+    // The most contrasty colour negative Kodak makes.
+    print: { contrast: 4.0, pivot: 0.44 },
     label: 'Ektar 100',
     category: 'kodak',
     description: 'Ultra-vivid negative · deep blacks',
@@ -174,6 +218,9 @@ const FUJI_STOCKS: FilmStockProfile[] = [
   }),
   stock({
     id: 'velvia50',
+    // Slide film, and the most contrasty thing in the set. Velvia's
+    // reputation is entirely this curve.
+    print: { contrast: 4.4, pivot: 0.44 },
     label: 'Velvia 50',
     category: 'fuji',
     description: 'Slide · hyper-saturated landscape',
@@ -190,6 +237,8 @@ const FUJI_STOCKS: FilmStockProfile[] = [
   }),
   stock({
     id: 'provia100f',
+    // Slide, but the restrained one.
+    print: { contrast: 3.6, pivot: 0.45 },
     label: 'Provia 100F',
     category: 'fuji',
     description: 'Slide · neutral vivid',
@@ -222,6 +271,8 @@ const FUJI_STOCKS: FilmStockProfile[] = [
   }),
   stock({
     id: 'classic_chrome',
+    // Muted, not flat: the colour is restrained and the tone is not.
+    print: { contrast: 3.2, pivot: 0.45 },
     label: 'Classic Chrome',
     category: 'fuji',
     description: 'Documentary · subdued chroma',
@@ -274,6 +325,8 @@ const CINEMA_STOCKS: FilmStockProfile[] = [
   }),
   stock({
     id: 'bleachBypass',
+    // Silver retained in the print — the process is a contrast process.
+    print: { contrast: 4.6, pivot: 0.43 },
     label: 'Bleach Bypass',
     category: 'cinema',
     description: 'Silver retention · low sat high contrast',
@@ -319,6 +372,8 @@ const CINEMA_STOCKS: FilmStockProfile[] = [
   }),
   stock({
     id: 'noirTeal',
+    // Crushed by design.
+    print: { contrast: 4.0, pivot: 0.44 },
     label: 'Noir Teal',
     category: 'cinema',
     description: 'Near-monochrome · teal shadows',
@@ -432,6 +487,8 @@ const BW_STOCKS: FilmStockProfile[] = [
   }),
   stock({
     id: 'noirHigh',
+    // Grade 5 paper.
+    print: { contrast: 4.4, pivot: 0.44 },
     label: 'Noir High',
     category: 'bw',
     description: 'Crushed blacks · stark',

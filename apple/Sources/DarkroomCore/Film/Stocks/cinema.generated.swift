@@ -31,6 +31,7 @@ extension FilmStock {
         vibrance: 0.05,
         halation: 0.04,
         halationWarmth: 0.82,
+        print: PrintProfile(contrast: 3.4, pivot: 0.44),
         grain: nil,
         preservesSkinTones: false,
         isStylized: false
@@ -59,6 +60,7 @@ extension FilmStock {
         vibrance: 0.0,
         halation: 0.02,
         halationWarmth: 0.5,
+        print: PrintProfile(contrast: 4.6, pivot: 0.43),
         grain: nil,
         preservesSkinTones: false,
         isStylized: false
@@ -87,6 +89,7 @@ extension FilmStock {
         vibrance: 0.07,
         halation: 0.06,
         halationWarmth: 0.92,
+        print: PrintProfile(contrast: 3.4, pivot: 0.44),
         grain: nil,
         preservesSkinTones: false,
         isStylized: false
@@ -115,6 +118,7 @@ extension FilmStock {
         vibrance: 0.0,
         halation: 0.02,
         halationWarmth: 0.6,
+        print: PrintProfile(contrast: 3.4, pivot: 0.44),
         grain: nil,
         preservesSkinTones: false,
         isStylized: false
@@ -143,6 +147,7 @@ extension FilmStock {
         vibrance: 0.0,
         halation: 0.02,
         halationWarmth: 0.55,
+        print: PrintProfile(contrast: 4.0, pivot: 0.44),
         grain: nil,
         preservesSkinTones: false,
         isStylized: false
@@ -171,6 +176,7 @@ extension FilmStock {
         vibrance: 0.07,
         halation: 0.05,
         halationWarmth: 0.9,
+        print: PrintProfile(contrast: 3.4, pivot: 0.44),
         grain: nil,
         preservesSkinTones: false,
         isStylized: false
@@ -199,6 +205,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.02,
         halationWarmth: 0.6,
+        print: PrintProfile(contrast: 3.4, pivot: 0.44),
         grain: nil,
         preservesSkinTones: false,
         isStylized: false
@@ -227,6 +234,7 @@ extension FilmStock {
         vibrance: 0.03,
         halation: 0.04,
         halationWarmth: 0.85,
+        print: PrintProfile(contrast: 3.4, pivot: 0.44),
         grain: nil,
         preservesSkinTones: false,
         isStylized: false

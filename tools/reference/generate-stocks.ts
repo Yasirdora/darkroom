@@ -59,6 +59,9 @@ const curveLiteral = (curve: FilmStockProfile['curves']['r']): string =>
   `toeLift: ${num(curve.toeLift)}, shoulder: ${num(curve.shoulder)}, ` +
   `shoulderStrength: ${num(curve.shoulderStr)}, gain: ${num(curve.gain)})`;
 
+const printLiteral = (print: NonNullable<FilmStockProfile['print']>): string =>
+  `PrintProfile(contrast: ${num(print.contrast)}, pivot: ${num(print.pivot)})`;
+
 const stockLiteral = (profile: FilmStockProfile): string => {
   const m = profile.dyeMatrix;
   const grain = profile.grain
@@ -68,6 +71,7 @@ const stockLiteral = (profile: FilmStockProfile): string => {
 
   const category = CATEGORY[profile.category];
   if (!category) throw new Error(`Unmapped category '${profile.category}' on '${profile.id}'`);
+  if (!profile.print) throw new Error(`No print profile on '${profile.id}'`);
 
   return `    public static let ${identifier(profile.id)} = FilmStock(
         id: ${str(profile.id)},
@@ -92,6 +96,7 @@ const stockLiteral = (profile: FilmStockProfile): string => {
         vibrance: ${num(profile.vibrance)},
         halation: ${num(profile.halation)},
         halationWarmth: ${num(profile.halationWarmth)},
+        print: ${printLiteral(profile.print)},
         grain: ${grain},
         preservesSkinTones: ${profile.skinPreserve === true},
         isStylized: ${profile.stylized === true}

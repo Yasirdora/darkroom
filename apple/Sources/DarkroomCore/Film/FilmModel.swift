@@ -12,6 +12,8 @@ import Foundation
 /// 5. **Saturation and vibrance**.
 /// 6. **Halation** — light scattering back off the film base into bright edges.
 ///
+/// The print stage sits between the scan and the timing; see ``applyPrint``.
+///
 /// Every stage is colour-only, so the whole chain bakes into a ``ColorCube``
 /// once per stock and the render layer samples a texture per pixel.
 public enum FilmModel {
@@ -42,6 +44,16 @@ public enum FilmModel {
 
         (cr, cg, cb) = stock.dyeMatrix.apply(cr, cg, cb, clampingNegatives: false)
         (cr, cg, cb) = applyScanner(cr, cg, cb, stock.scanner, luminance: lum)
+
+        // Printed after the scan of the negative and before the lab's colour
+        // timing, which is the order the darkroom works in: the print
+        // establishes the tonal shape, then timing decides the balance printed
+        // into it.
+        if stock.print.contrast > 1e-6 {
+            cr = applyPrint(cr / 255, stock.print) * 255
+            cg = applyPrint(cg / 255, stock.print) * 255
+            cb = applyPrint(cb / 255, stock.print) * 255
+        }
 
         // Skin protection tests the *original* pixel here, before the chain has
         // moved it — but tests the *processed* pixel inside the saturation
@@ -248,6 +260,28 @@ public enum FilmModel {
     ///
     /// Colour-only here, keyed off luminance. The spatial bloom that makes
     /// halation recognisable belongs to the render layer.
+    /// Exposes one channel through the print stock.
+    ///
+    /// A logistic curve, normalised so that 0 and 1 land exactly on themselves.
+    /// That normalisation matters more than it looks: without it every print
+    /// would also be an exposure change, and a stock's carefully placed toe lift
+    /// would move every time its contrast was adjusted.
+    ///
+    /// Monotonic for any positive steepness, so it can never fold the tone scale
+    /// back on itself — the failure that turns a highlight darker than the
+    /// midtone beside it.
+    static func applyPrint(_ value: Double, _ print: PrintProfile) -> Double {
+        guard print.contrast > 1e-6 else { return value }
+        let k = print.contrast
+        let p = print.pivot
+        func f(_ x: Double) -> Double { 1 / (1 + exp(-k * (x - p))) }
+        let lo = f(0)
+        let hi = f(1)
+        let span = hi - lo
+        guard span > 1e-9 else { return value }
+        return (f(value) - lo) / span
+    }
+
     static func applyHalation(
         _ r: Double, _ g: Double, _ b: Double,
         amount: Double,

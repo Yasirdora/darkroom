@@ -109,6 +109,39 @@ public enum FilmCategory: String, Sendable, Codable, CaseIterable, Identifiable 
 /// Everything here is colour-only and therefore bakeable into a ``ColorCube``.
 /// ``grain`` is the exception: it is spatial, carried alongside as metadata for
 /// the render layer rather than folded into the cube.
+/// The print stage: exposing the developed negative through a positive stock.
+///
+/// This is where a film look gets its contrast, and leaving it out is why a
+/// faithful negative simulation reads as flat. A colour negative scanned neutral
+/// is *supposed* to look washed — that is what the orange-masked original is, a
+/// low-contrast recording with the shape still to come. Printing it through a
+/// positive stock is the step that puts the shape in, and it is the step
+/// everyone means when they say "the Portra look".
+///
+/// Measured before this existed: 48 of 52 colour looks had a neutral-axis slope
+/// between 0.95 and 1.10, so Velvia and Portra were separated by less than one
+/// notch of the contrast slider.
+public struct PrintProfile: Sendable, Equatable, Hashable, Codable {
+
+    /// Steepness of the print's characteristic curve. Zero bypasses the stage.
+    ///
+    /// A logistic rather than a gamma, because a print rolls off at *both* ends
+    /// — paper has a maximum density and a base white, and neither is reached
+    /// abruptly. A gamma only shapes one end and clips the other.
+    public var contrast: Double
+
+    /// The tone the curve pivots about. Below it goes down, above it goes up.
+    public var pivot: Double
+
+    public init(contrast: Double, pivot: Double) {
+        self.contrast = contrast
+        self.pivot = pivot
+    }
+
+    /// No print at all — the negative shown unprinted.
+    public static let none = PrintProfile(contrast: 0, pivot: 0.5)
+}
+
 public struct FilmStock: Sendable, Equatable, Hashable, Codable, Identifiable {
 
     public var id: String
@@ -148,6 +181,9 @@ public struct FilmStock: Sendable, Equatable, Hashable, Codable, Identifiable {
 
     /// Highlight bleed around bright edges, from light scattering off the film
     /// base and reflecting back into the emulsion.
+    /// Print stage. See ``PrintProfile``.
+    public var print: PrintProfile
+
     public var halation: Double
     /// How warm that bleed is, `0...1`.
     public var halationWarmth: Double
@@ -184,6 +220,7 @@ public struct FilmStock: Sendable, Equatable, Hashable, Codable, Identifiable {
         vibrance: Double,
         halation: Double,
         halationWarmth: Double,
+        print: PrintProfile = .none,
         grain: FilmGrainSpec? = nil,
         preservesSkinTones: Bool = false,
         isStylized: Bool = false
@@ -206,6 +243,7 @@ public struct FilmStock: Sendable, Equatable, Hashable, Codable, Identifiable {
         self.vibrance = vibrance
         self.halation = halation
         self.halationWarmth = halationWarmth
+        self.print = print
         self.grain = grain
         self.preservesSkinTones = preservesSkinTones
         self.isStylized = isStylized
