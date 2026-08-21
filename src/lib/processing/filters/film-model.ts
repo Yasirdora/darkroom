@@ -169,6 +169,30 @@ const applyScanner = (
   }
 };
 
+/**
+ * Saturation a tint needs in order to carry a given chroma at a given lightness.
+ *
+ * HSL chroma is `(1 - |2L - 1|) * S`, so a fixed saturation collapses toward
+ * both ends of the scale. That made the split-tone stage weakest exactly where
+ * it is supposed to act: the shadow weight reaches 1 below about L = 0.2, and
+ * at L = 0.1 a full 0.14 tint could only move a pixel 2 codes. Stocks named for
+ * their colour — "Pink lift", "Warm highlight glow" — were delivering six.
+ *
+ * Compensating by the same factor keeps the chroma a tint asks for roughly
+ * constant across the tonal range. The floor stops the correction running away
+ * near black and white, where a colour genuinely cannot be carried: there is no
+ * saturation that makes a near-black pixel colourful, and pretending otherwise
+ * would posterise the toe.
+ */
+const tintSaturation = (chroma: number, lightness: number): number => {
+  const reach = Math.max(1 - Math.abs(2 * lightness - 1), 0.3);
+  return Math.min(chroma / reach, 1);
+};
+
+/** Chroma the shadow and highlight tints aim for, before the stock's strength. */
+const SHADOW_CHROMA = 0.34;
+const HIGHLIGHT_CHROMA = 0.29;
+
 const applyTiming = (
   r: number,
   g: number,
@@ -179,14 +203,16 @@ const applyTiming = (
   const sW = (1 - smoothstep(50, 145, lum)) * profile.shadowTint;
   const hW = smoothstep(120, 225, lum) * profile.highlightTint;
 
+  const l = lum / 255;
+
   if (sW > 0.001) {
-    const tint = hslToRgb(profile.shadowHue, 0.3, lum / 255);
+    const tint = hslToRgb(profile.shadowHue, tintSaturation(SHADOW_CHROMA, l), l);
     r = lerp(r, tint.r, sW);
     g = lerp(g, tint.g, sW);
     b = lerp(b, tint.b, sW);
   }
   if (hW > 0.001) {
-    const tint = hslToRgb(profile.highlightHue, 0.24, lum / 255);
+    const tint = hslToRgb(profile.highlightHue, tintSaturation(HIGHLIGHT_CHROMA, l), l);
     r = lerp(r, tint.r, hW);
     g = lerp(g, tint.g, hW);
     b = lerp(b, tint.b, hW);

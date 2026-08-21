@@ -188,6 +188,30 @@ public enum FilmModel {
     }
 
     /// Split-tones shadows and highlights toward their timing hues.
+    /// Saturation a tint needs in order to carry a given chroma at a given
+    /// lightness.
+    ///
+    /// HSL chroma is `(1 - |2L - 1|) · S`, so a fixed saturation collapses
+    /// toward both ends of the scale. That made the split-tone stage weakest
+    /// exactly where it is supposed to act: the shadow weight reaches 1 below
+    /// about L = 0.2, and at L = 0.1 a full 0.14 tint could only move a pixel
+    /// two code values. Stocks named for their colour — "Pink lift", "Warm
+    /// highlight glow" — were delivering six.
+    ///
+    /// Compensating by the same factor keeps the chroma a tint asks for roughly
+    /// constant across the tonal range. The floor stops the correction running
+    /// away near black and white, where a colour genuinely cannot be carried:
+    /// no saturation makes a near-black pixel colourful, and pretending
+    /// otherwise would posterise the toe.
+    static func tintSaturation(_ chroma: Double, _ lightness: Double) -> Double {
+        let reach = Swift.max(1 - abs(2 * lightness - 1), 0.3)
+        return Swift.min(chroma / reach, 1)
+    }
+
+    /// Chroma the tints aim for, before the stock's own strength.
+    static let shadowChroma = 0.34
+    static let highlightChroma = 0.29
+
     static func applyTiming(
         _ r: Double, _ g: Double, _ b: Double,
         _ stock: FilmStock
@@ -198,16 +222,26 @@ public enum FilmModel {
         let shadowWeight = (1 - JSMath.smoothstep(50, 145, lum)) * stock.shadowTint
         let highlightWeight = JSMath.smoothstep(120, 225, lum) * stock.highlightTint
 
+        let lightness = lum / 255
+
         if shadowWeight > 0.001 {
             // Tint carries the pixel's own lightness, so toning shifts hue
             // without shifting exposure.
-            let tint = hslToRGB(stock.shadowHue, 0.3, lum / 255)
+            let tint = hslToRGB(
+                stock.shadowHue,
+                tintSaturation(shadowChroma, lightness),
+                lightness
+            )
             r = JSMath.lerp(r, tint.r, shadowWeight)
             g = JSMath.lerp(g, tint.g, shadowWeight)
             b = JSMath.lerp(b, tint.b, shadowWeight)
         }
         if highlightWeight > 0.001 {
-            let tint = hslToRGB(stock.highlightHue, 0.24, lum / 255)
+            let tint = hslToRGB(
+                stock.highlightHue,
+                tintSaturation(highlightChroma, lightness),
+                lightness
+            )
             r = JSMath.lerp(r, tint.r, highlightWeight)
             g = JSMath.lerp(g, tint.g, highlightWeight)
             b = JSMath.lerp(b, tint.b, highlightWeight)

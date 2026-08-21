@@ -1411,3 +1411,54 @@ not because a test demanded it, but because a grade shared from the Mac app
 carries a look id and is rendered by whichever engine opens it. Had only Swift
 gained the print stage, the same link would have produced two different
 photographs.
+
+## Split toning: withdrawn, then reinstated on better evidence
+
+The audit proposed re-tuning the split-tone strengths; it was withdrawn on the
+grounds that the looks at the bottom of the cast range are neutral by design.
+That was right about the bottom and wrong about the middle, and looking again
+found something better than a tuning change.
+
+**The stage was structurally weakest exactly where it acts.** HSL chroma is
+`(1 − |2L − 1|) · S`, so a fixed saturation collapses toward both ends of the
+scale. The shadow weight reaches 1 below about L = 0.2 — and at L = 0.1 a full
+0.14 tint could only move a pixel two code values. Stocks named for their colour
+were delivering six:
+
+| | declared highlight tint | measured cast |
+|---|---|---|
+| Portra 400 | 0.10 | 24 |
+| Ludwig — "warm highlight glow" | **0.14** | **6** |
+
+A stock declaring a *higher* tint than Portra produced a quarter of the colour.
+Nothing in the numbers was wrong; the mechanism could not carry them.
+
+`tintSaturation` compensates by the same factor, so the chroma a tint asks for
+stays roughly constant across the range. The floor at 0.3 stops the correction
+running away near black and white, where a colour genuinely cannot be carried —
+no saturation makes a near-black pixel colourful, and pretending otherwise would
+posterise the toe.
+
+Two tuning changes followed, both targeted rather than blanket:
+
+- The `stylized` and `portraitLook` helpers set the tints for every preset that
+  does not name its own, at 0.05–0.06. Raised to 0.08–0.10.
+- Fourteen presets that name a colour in their own description and measured
+  under 14 codes had their declared tints doubled, capped at 0.18. The list was
+  derived from the measurement and the stated character, not chosen by eye.
+
+Presets that name *no* colour were left alone, and still measure where they
+should: Studio 5, Matte 5, bleach bypass 2. Median cast across colour looks went
+from 12 to 16.
+
+### The test image was the wrong test image
+
+"Pink lift · warm vintage" still looked neutral after the change — on a
+high-key portrait against a bright sky, which has almost no shadows for a shadow
+lift to act on. Measured by tonal zone on a frame that *has* shadows, the same
+look moves green down 14 codes against red's 8 in the shadows and warms the
+highlights by 11. It reads plainly.
+
+Worth recording as a method note: a look was very nearly re-tuned a second time
+on the evidence of an image that could not show what it does. Judge a shadow
+tool on a picture with shadows.

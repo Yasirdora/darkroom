@@ -528,9 +528,12 @@ const portraitLook = (
     dyeMatrix: dye([1, 0, 0], [0, 1, 0], [0, 0, 1]),
     scanner: 'neutral',
     shadowHue: 28,
-    shadowTint: 0.05,
+    // Raised from 0.05/0.06, for the same reason as the stylized defaults —
+    // though kept below them, because these are the skin-safe portrait looks
+    // and a cast that reads on a wall reads twice as loud on a face.
+    shadowTint: 0.08,
     highlightHue: 38,
-    highlightTint: 0.06,
+    highlightTint: 0.09,
     latitude: 0.88,
     saturation: 0.98,
     vibrance: 0.03,
@@ -563,9 +566,9 @@ const PORTRAIT_STOCKS: FilmStockProfile[] = [
   portraitLook('magicGolden', 'Golden', 'Warm skin · creamy highlights', {
     scanner: 'noritsu',
     shadowHue: 32,
-    shadowTint: 0.06,
+    shadowTint: 0.12,
     highlightHue: 38,
-    highlightTint: 0.12,
+    highlightTint: 0.18,
     saturation: 1.02,
     vibrance: 0.04,
     halation: 0.06,
@@ -611,9 +614,9 @@ const PORTRAIT_STOCKS: FilmStockProfile[] = [
   portraitLook('magicSunset', 'Sunset Portrait', 'Warm rim · soft highlight rolloff', {
     scanner: 'noritsu',
     shadowHue: 22,
-    shadowTint: 0.08,
+    shadowTint: 0.16,
     highlightHue: 32,
-    highlightTint: 0.14,
+    highlightTint: 0.18,
     saturation: 1.0,
     halation: 0.07,
     halationWarmth: 0.9,
@@ -710,9 +713,13 @@ const stylized = (
     dyeMatrix: dye([1, 0, 0], [0, 1, 0], [0, 0, 1]),
     scanner: 'neutral',
     shadowHue: 200,
-    shadowTint: 0.06,
+    // Raised from 0.06. These are the defaults every social and classic preset
+    // inherits unless it names its own, and at 0.06 a look called "Pink lift ·
+    // warm vintage" was delivering six code values of cast. A preset that names
+    // a colour should show one.
+    shadowTint: 0.1,
     highlightHue: 40,
-    highlightTint: 0.06,
+    highlightTint: 0.1,
     latitude: 0.5,
     saturation: 0.95,
     vibrance: 0.03,
@@ -733,11 +740,11 @@ const SOCIAL_STOCKS: FilmStockProfile[] = [
   }),
   stylized('gingham', 'Gingham', 'social', 'Soft vintage · cool fade', {
     curves: { r: curve({ gamma: 1.0 }), g: curve({ gamma: 1.01 }), b: curve({ gamma: 0.98, gain: 1.02 }) },
-    shadowHue: 195, shadowTint: 0.1, saturation: 0.86,
+    shadowHue: 195, shadowTint: 0.18, saturation: 0.86,
   }),
   stylized('reyes', 'Reyes', 'social', 'Washed matte · warm blacks', {
     curves: { r: curve({ gamma: 1.04, toeLift: 0.07 }), g: curve({ gamma: 1.05, toeLift: 0.07 }), b: curve({ gamma: 1.06, toeLift: 0.07 }) },
-    scanner: 'noritsu', shadowHue: 28, shadowTint: 0.07, saturation: 0.8, latitude: 0.65,
+    scanner: 'noritsu', shadowHue: 28, shadowTint: 0.14, saturation: 0.8, latitude: 0.65,
   }),
   stylized('hudson', 'Hudson', 'social', 'Icy cool · cyan shadows', {
     curves: { r: curve({ gamma: 0.92 }), g: curve({ gamma: 0.94 }), b: curve({ gamma: 0.9, gain: 1.03 }) },
@@ -753,10 +760,10 @@ const SOCIAL_STOCKS: FilmStockProfile[] = [
   }),
   stylized('crema', 'Crema', 'social', 'Creamy fade · lifted shadows', {
     curves: { r: curve({ gamma: 1.0, toeLift: 0.06 }), g: curve({ gamma: 1.01, toeLift: 0.06 }), b: curve({ gamma: 1.02, toeLift: 0.05 }) },
-    scanner: 'noritsu', highlightHue: 38, highlightTint: 0.12, saturation: 0.86, halation: 0.05,
+    scanner: 'noritsu', highlightHue: 38, highlightTint: 0.18, saturation: 0.86, halation: 0.05,
   }),
   stylized('ludwig', 'Ludwig', 'social', 'Warm highlight glow', {
-    highlightHue: 38, highlightTint: 0.14, saturation: 1.02, halation: 0.06, halationWarmth: 0.85,
+    highlightHue: 38, highlightTint: 0.18, saturation: 1.02, halation: 0.06, halationWarmth: 0.85,
   }),
   stylized('amaro', 'Amaro', 'social', 'Warm · faded edges feel', {
     scanner: 'noritsu', saturation: 1.02, vibrance: 0.04,
@@ -765,21 +772,21 @@ const SOCIAL_STOCKS: FilmStockProfile[] = [
 
 const CLASSIC_STOCKS: FilmStockProfile[] = [
   stylized('vintage', 'Vintage', 'classic', 'Faded warmth · lifted shadows', {
-    scanner: 'noritsu', shadowHue: 35, shadowTint: 0.1, saturation: 0.82, latitude: 0.55,
+    scanner: 'noritsu', shadowHue: 35, shadowTint: 0.18, saturation: 0.82, latitude: 0.55,
   }),
   stylized('1977', '1977', 'classic', 'Retro fade · warm mids', {
-    scanner: 'noritsu', highlightHue: 40, highlightTint: 0.1,
+    scanner: 'noritsu', highlightHue: 40, highlightTint: 0.18,
   }),
   stylized('aden', 'Aden', 'classic', 'Cool matte · soft pastels', {
     curves: { r: curve({ gamma: 0.98 }), g: curve({ gamma: 0.99 }), b: curve({ gamma: 0.96, gain: 1.02 }) },
-    shadowHue: 195, shadowTint: 0.1, saturation: 0.88,
+    shadowHue: 195, shadowTint: 0.18, saturation: 0.88,
   }),
   stylized('moon', 'Moon', 'classic', 'Cool silver · low saturation', {
     curves: { r: curve({ gamma: 0.9 }), g: curve({ gamma: 0.92 }), b: curve({ gamma: 0.88, gain: 1.03 }) },
     saturation: 0.55,
   }),
   stylized('rise', 'Rise', 'classic', 'Golden hour glow', {
-    scanner: 'noritsu', highlightHue: 35, highlightTint: 0.12, saturation: 1.02, halation: 0.06, halationWarmth: 0.88,
+    scanner: 'noritsu', highlightHue: 35, highlightTint: 0.18, saturation: 1.02, halation: 0.06, halationWarmth: 0.88,
   }),
   stylized('willow', 'Willow', 'classic', 'Soft monochrome wash', {
     saturation: 0.15, dyeMatrix: dye([0.33, 0.5, 0.17], [0.33, 0.5, 0.17], [0.33, 0.5, 0.17]),
@@ -789,17 +796,17 @@ const CLASSIC_STOCKS: FilmStockProfile[] = [
     saturation: 1.08, vibrance: 0.08,
   }),
   stylized('vesper', 'Vesper', 'classic', 'Evening warmth · soft rolloff', {
-    scanner: 'noritsu', shadowHue: 220, shadowTint: 0.08, highlightHue: 35, highlightTint: 0.1,
+    scanner: 'noritsu', shadowHue: 220, shadowTint: 0.16, highlightHue: 35, highlightTint: 0.18,
   }),
   stylized('clarendon', 'Clarendon', 'classic', 'High contrast · vivid color', {
     curves: { r: curve({ gamma: 0.84 }), g: curve({ gamma: 0.84 }), b: curve({ gamma: 0.84 }) },
     saturation: 1.08, vibrance: 0.07,
   }),
   stylized('valencia', 'Valencia', 'classic', 'Warm fade · creamy highlights', {
-    scanner: 'noritsu', shadowHue: 30, shadowTint: 0.08, saturation: 0.92,
+    scanner: 'noritsu', shadowHue: 30, shadowTint: 0.16, saturation: 0.92,
   }),
   stylized('nashville', 'Nashville', 'classic', 'Pink lift · warm vintage', {
-    scanner: 'noritsu', shadowHue: 320, shadowTint: 0.05, saturation: 0.86,
+    scanner: 'noritsu', shadowHue: 320, shadowTint: 0.1, saturation: 0.86,
   }),
 ];
 
