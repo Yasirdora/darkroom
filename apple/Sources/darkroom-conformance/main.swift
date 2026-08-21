@@ -35,6 +35,7 @@ do {
             + QualifierChecks.all()
             + CurveEditingChecks.all()
             + CurveGestureChecks.all()
+            + CurveHandleChecks.all()
     )
     print(report.formatted(verbose: verbose))
     exit(report.passed ? 0 : 1)

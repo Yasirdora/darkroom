@@ -877,3 +877,75 @@ index, so the mutation that proved the check works also killed the process
 before it could print a single result — the suite reported a fatal error, not a
 failure. Look up optionally and let `expect` record the miss. A check's job is to
 say what is wrong, and it cannot do that from a stack trace.
+
+## `.highPriorityGesture` inside a `ScrollView`, always
+
+The inspector scrolls. A control inside it that attaches a plain `.gesture`
+wins arbitration only while the drag stays horizontal enough for SwiftUI to
+rule out a scroll — so a curve point dragged upward scrolls the panel instead
+of moving, and the editor appears to ignore half of what is done to it.
+
+This regressed once already, inside a commit whose stated purpose was fixing
+the curve editor: rewriting the `plot` block, `.highPriorityGesture` was
+retyped as `.gesture`. Nothing caught it. It is a fact about SwiftUI gesture
+arbitration, and the conformance suite deliberately stops at the point where
+SwiftUI begins — which is exactly where the regression landed.
+
+Both the curve plot and the adjustment slider now use `.highPriorityGesture`.
+A control takes precedence over the surface carrying it.
+
+## Bézier handles
+
+The engine has supported handles since the TypeScript original; only the macOS
+editor lacked a way to touch them. Four rules make them safe to expose.
+
+**A handle is drawn where the evaluator reads it.** For a stored handle that is
+trivial. For a half-stored one — an x with no y, which a shared grade can carry,
+since the four coordinates decode independently — the evaluator substitutes the
+anchor for the missing coordinate, and the editor shows that same substitution
+rather than inventing something plausible. `CurveHandleChecks.agreementCheck`
+compares the two directly.
+
+**An unstored handle sits one third along the chord.** A cubic Bézier whose
+control points cut a straight chord into thirds *is* that chord, so a handle
+shown there describes its segment exactly and recording it changes nothing.
+That is what lets selecting a point reveal handles on a straight segment without
+touching the image. Verified twice: as an equality on the coordinates, and as a
+0.15-code bound on the rendered curve.
+
+That bound is measured and then derived, not guessed. Materialising introduces
+no error; the evaluator changes *branch*, from a direct linear computation to a
+bisection that stops within 0.00005 of the target x. The x error becomes a y
+error times the segment slope. At slope 9 that predicts 0.115 codes and 0.108
+was measured. Below the 0.5-code quantisation step, and the same residue every
+Bézier segment the engine already evaluates carries.
+
+**A handle never leaves its segment.** The evaluator finds its parameter by
+bisection on x, which converges only while x increases along the segment. A
+handle past a neighbour would fold x back and the solver would return a
+confident number for the wrong part of the curve — wrong pixels rather than a
+visible failure.
+
+**Shaping one end of a straight segment records the other end too.** A Bézier
+segment has two control points; leaving the far one unstored collapses it onto
+its anchor, so shaping one end yanks the other. The far end is written down at
+the position that described the straight segment, before the drag applies.
+
+## Equivalent mutations are a finding, not a pass
+
+Removing the collapsed-handle guard from `materialising` changed no test, and
+the reason was not a gap: the evaluator substitutes the anchor for an absent
+handle, so a handle *recorded* at the anchor computes identically. The mutation
+was semantically equivalent.
+
+Chasing it anyway found a real bug beside it — `handleTarget` reported
+half-stored handles at the anchor, which is not where the evaluator reads them.
+The guard stayed, on its actual merit: storing a coordinate that carries no
+information would write it into every shared grade and saved document.
+
+A surviving mutant asks a question. Sometimes the answer is "the check is
+missing", and twice here it was — a double-click check that derived its timing
+from the very constant under mutation, and nothing asserting the far end of a
+newly shaped segment. Sometimes the answer is "the mutation changed nothing",
+and that is worth writing down rather than papering over with a test that only
+appears to cover it.

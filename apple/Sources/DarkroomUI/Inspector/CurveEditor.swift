@@ -181,17 +181,25 @@ public struct CurveEditor: View {
             drawHistogram(context: context, in: rect)
             drawIdentity(context: context, in: rect)
             drawCurve(context: context, in: rect)
+            drawHandles(context: context, in: rect)
             drawPoints(context: context, in: rect)
         }
         .frame(width: Self.plotSize, height: Self.plotSize)
         // The whole square is clickable, not just what has been drawn on it.
         // Without this a click only registers where a stroke happens to be.
         .contentShape(Rectangle())
-        // One gesture, which tells a tap from a drag by whether the pointer
-        // moved. A `DragGesture(minimumDistance: 0)` and an `onTapGesture` on
-        // the same view do not coexist — the drag wins arbitration and the tap
-        // never fires — so both behaviours come from this one.
-        .gesture(plotGesture(in: rect))
+        // One gesture for everything the plot does. A
+        // `DragGesture(minimumDistance: 0)` and an `onTapGesture` on the same
+        // view do not coexist — the drag wins arbitration and the tap never
+        // fires — so clicks, drags and double-clicks all come from this one.
+        //
+        // `.highPriorityGesture`, never `.gesture`. The inspector is a
+        // `ScrollView`, and a plain gesture loses arbitration to its scrolling
+        // ancestor: a vertical drag on the plot scrolls the panel instead of
+        // moving the point, which reads as the curve editor ignoring half of
+        // what is done to it. This has now regressed once, in a commit whose
+        // stated purpose was fixing this very control.
+        .highPriorityGesture(plotGesture(in: rect))
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(channelName(channel)) tone curve")
@@ -299,6 +307,47 @@ public struct CurveEditor: View {
         )
     }
 
+    /// The selected point's Bézier handles.
+    ///
+    /// Only the selected point's, deliberately. Every point's handles at once
+    /// is a thicket that hides the curve the handles exist to shape, and the
+    /// curve is the thing being judged.
+    private func drawHandles(context: GraphicsContext, in rect: CGRect) {
+        guard let index = selected, points.indices.contains(index) else { return }
+        let anchor = CGPoint(
+            x: rect.width * points[index].x,
+            y: rect.height * (1 - points[index].y)
+        )
+
+        for side in [CurveEditing.HandleSide.incoming, .outgoing] {
+            // A collapsed handle sits exactly on its anchor and cannot be
+            // shaped without changing the curve. Drawing it would put a knob
+            // under the point that moves nothing when dragged.
+            guard !CurveEditing.isHandleCollapsed(index, side: side, in: points),
+                  let position = CurveEditing.handlePosition(
+                      index, side: side, in: points, size: Double(rect.width)
+                  )
+            else { continue }
+
+            let knob = CGPoint(x: position.x, y: position.y)
+
+            var stem = Path()
+            stem.move(to: anchor)
+            stem.addLine(to: knob)
+            context.stroke(stem, with: .color(channel.tint.opacity(0.5)), lineWidth: 1)
+
+            // Hollow, and smaller than a control point. A handle is subordinate
+            // to the point it belongs to, and should not read as another point.
+            let radius: Double = 3.5
+            let dot = Path(ellipseIn: CGRect(
+                x: knob.x - radius, y: knob.y - radius,
+                width: radius * 2, height: radius * 2
+            ))
+            context.fill(dot, with: .color(.black.opacity(0.55)))
+            context.stroke(dot, with: .color(channel.tint.opacity(0.9)), lineWidth: 1.5)
+        }
+    }
+
     private func drawPoints(context: GraphicsContext, in rect: CGRect) {
         for (index, point) in points.enumerated() {
             let centre = CGPoint(x: rect.width * point.x, y: rect.height * (1 - point.y))
@@ -322,9 +371,16 @@ public struct CurveEditor: View {
     }
 
     /// What to tell the user, given what they can currently do.
+    ///
+    /// One thing at a time, and only the thing that is possible right now. A
+    /// control that recites its whole vocabulary up front is read once and
+    /// never again.
     private var hint: String {
-        if selected != nil, isRemovable(selected!) { return "Delete removes the point" }
-        if points.count == 2 { return "Click to add a point" }
+        if let index = selected, CurveEditing.hasShapeableHandle(index, in: points) {
+            return "Drag a handle to shape · ⌥ for a corner"
+        }
+        if selected != nil { return "Double-click a point to remove it" }
+        if points.count == 2 { return "Click and drag to add a point" }
         return "\(points.count) points"
     }
 
@@ -351,7 +407,14 @@ public struct CurveEditor: View {
                     start: PlotPoint(x: value.startLocation.x, y: value.startLocation.y),
                     current: PlotPoint(x: value.location.x, y: value.location.y),
                     in: points,
-                    size: rect.width
+                    size: rect.width,
+                    selected: selected,
+                    modifiers: modifiers(),
+                    // The event's own timestamp, not `Date()`. A double-click is
+                    // measured between the presses themselves, and reading the
+                    // clock when the effect is handled folds in whatever the
+                    // render took.
+                    time: value.time.timeIntervalSinceReferenceDate
                 ), in: rect)
             }
             .onEnded { value in
@@ -359,6 +422,15 @@ public struct CurveEditor: View {
                     at: PlotPoint(x: value.location.x, y: value.location.y)
                 ), in: rect)
             }
+    }
+
+    /// Modifier keys as the gesture understands them.
+    ///
+    /// `DragGesture.Value` carries no modifier state, so it is read from the
+    /// current event. Sampled at the moment the gesture is handled, which is
+    /// inside AppKit's dispatch of that very event.
+    private func modifiers() -> CurveGesture.Modifiers {
+        NSEvent.modifierFlags.contains(.option) ? [.option] : []
     }
 
     /// Carries out what the gesture decided.
@@ -377,6 +449,18 @@ public struct CurveEditor: View {
             case .add(let location):
                 addPoint(at: CGPoint(x: location.x, y: location.y), in: rect)
 
+            case .moveHandle(let index, let side, let location, let linked):
+                moveHandle(index, side: side,
+                           to: CGPoint(x: location.x, y: location.y),
+                           in: rect, linked: linked)
+
+            case .remove(let index):
+                let updated = CurveEditing.removing(index, from: points)
+                editor.update(
+                    { setCurve(ToneCurve(updated), in: &$0) },
+                    label: "Remove Curve Point"
+                )
+
             case .endInteraction:
                 editor.endInteraction()
             }
@@ -393,14 +477,37 @@ public struct CurveEditor: View {
         editor.preview { setCurve(ToneCurve(updated), in: &$0) }
     }
 
+    /// Inserts a point mid-gesture.
+    ///
+    /// `preview`, not `update`: the press has already opened an interaction, and
+    /// the drag that follows places the point. Recording the insertion as its
+    /// own undo step would split one motion into two, so undoing after adding
+    /// and dragging a point would leave the point behind at its birthplace.
     private func addPoint(at location: CGPoint, in rect: CGRect) {
         let result = CurveEditing.adding(
             at: (x: Double(location.x), y: Double(location.y)),
             to: points,
             size: Double(rect.width)
         )
-        editor.update({ setCurve(ToneCurve(result.points), in: &$0) }, label: "Add Curve Point")
-        selected = result.index
+        editor.preview { setCurve(ToneCurve(result.points), in: &$0) }
+    }
+
+    private func moveHandle(
+        _ index: Int,
+        side: CurveEditing.HandleSide,
+        to location: CGPoint,
+        in rect: CGRect,
+        linked: Bool
+    ) {
+        let updated = CurveEditing.movingHandle(
+            index,
+            side: side,
+            to: (x: Double(location.x), y: Double(location.y)),
+            in: points,
+            size: Double(rect.width),
+            linked: linked
+        )
+        editor.preview { setCurve(ToneCurve(updated), in: &$0) }
     }
 
     // MARK: - Curve access

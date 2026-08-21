@@ -169,7 +169,12 @@ public struct AdjustmentSlider: View {
             }
             .frame(height: 14)
             .contentShape(Rectangle())
-            .gesture(
+            // High priority, because the inspector scrolls. A plain gesture
+            // wins only while the drag stays horizontal enough for SwiftUI's
+            // arbitration to rule out a scroll — grab a thumb and move slightly
+            // downward and the panel slides away instead. Controls take
+            // precedence over the surface carrying them.
+            .highPriorityGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { gesture in
                         if !isDragging {
