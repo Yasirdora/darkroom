@@ -45,24 +45,15 @@ public struct InspectorView: View {
             // looked drawn on rather than lit.
             .inspectorScrollEdge()
 
+            resetButton
             footer
         }
         .frame(width: InspectorGeometry.panelWidth)
-        .background {
-            // Vibrancy from behind the *window*, not from the photograph.
-            // Sampling the image would tint the panel with whatever is on the
-            // canvas and shift it as the grade changed, and colour is judged
-            // against everything in view — which is the same reason the canvas
-            // surround is a flat neutral.
-            ZStack {
-                VisualEffectBackground(material: .sidebar, blending: .behindWindow)
-                // Held dark and neutral over the vibrancy. A bright desktop
-                // would otherwise lighten the panel beside the photograph, and
-                // the surround has to stay put to be worth anything.
-                Color(red: 0.055, green: 0.055, blue: 0.062).opacity(0.72)
-            }
-            .ignoresSafeArea()
-        }
+        // One floating surface, inset from the window's edges, rather than a
+        // column butted against the right-hand side. The gap is the point: it
+        // is what makes the panel read as sitting *above* the work instead of
+        // being bolted to it.
+        .inspectorPanel()
         .environment(\.colorScheme, .dark)
     }
 
@@ -159,7 +150,7 @@ public struct InspectorView: View {
                 }
             }
         }
-        .padding(.horizontal, InspectorGeometry.panelMargin)
+        .padding(.horizontal, InspectorGeometry.panelInset)
     }
 
     // MARK: - Footer
@@ -183,20 +174,38 @@ public struct InspectorView: View {
             }
 
             Spacer()
-
-            Button("Reset") { editor.resetGrade() }
-                .font(.system(size: 11))
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                // `.plain` makes the hit region the drawn glyphs, so without
-                // this only the letter strokes themselves are clickable.
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
-                .contentShape(Rectangle())
-                .disabled(editor.state.isNeutral)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
+        .padding(.horizontal, InspectorGeometry.panelInset + 6)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+    }
+
+    /// Starting over, as a control rather than a word in a corner.
+    ///
+    /// It was an eleven-point label tucked at the edge — findable if you knew
+    /// it was there, invisible if you did not. The action deserves the width:
+    /// it is the one thing in the panel someone reaches for when they have
+    /// lost the thread, which is exactly when hunting for a small grey word is
+    /// least welcome.
+    private var resetButton: some View {
+        Button {
+            editor.resetGrade()
+        } label: {
+            Text("Reset Adjustments")
+                .font(.system(size: 11, weight: .medium))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 7)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(editor.state.isNeutral ? .tertiary : .secondary)
+        .background {
+            RoundedRectangle(cornerRadius: InspectorGeometry.paneRadius, style: .continuous)
+                .fill(Color.white.opacity(0.055))
+        }
+        .disabled(editor.state.isNeutral)
+        .padding(.horizontal, InspectorGeometry.panelInset)
+        .padding(.bottom, InspectorGeometry.panelInset)
     }
 }
 

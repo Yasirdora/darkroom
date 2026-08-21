@@ -38,10 +38,13 @@ public enum CurveEditing {
     ///
     /// Lives here rather than in the view because the editing geometry and the
     /// checks over it both need the real number, and a constant duplicated in
-    /// two modules is a constant that will disagree with itself. The inspector
-    /// is 290 points wide, less 10 either side for the pane and 14 either side
+    /// two modules is a constant that will disagree with itself. The panel is
+    /// 290 points wide, less 8 either side to the pane and 14 either side
     /// inside it.
-    public static let plotSize: Double = 242
+    ///
+    /// A number rather than a measurement because a `GeometryReader` around the
+    /// plot tore down the drag gesture mid-drag; see `CurveEditor`.
+    public static let plotSize: Double = 290 - 2 * 8 - 2 * 14
 
     /// How close a click must be to a point, in plot coordinates, to grab it.
     ///

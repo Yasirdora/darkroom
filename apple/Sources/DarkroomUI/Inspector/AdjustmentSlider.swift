@@ -146,16 +146,10 @@ public struct AdjustmentSlider: View {
                 // as blue-to-amber. The axis is the information; the fill is
                 // only the amount.
                 if let axis = axisGradient {
-                    // Dimmed on purpose. A saturated gradient sitting beside
-                    // the photograph is exactly the chromatic contamination the
-                    // neutral surround exists to avoid — colour is judged
-                    // relative to everything in view, not just the frame. At
-                    // this weight the axis still reads instantly and stops
-                    // competing with the image for the eye.
                     Capsule()
                         .fill(axis)
                         .frame(height: 3)
-                        .opacity(0.6)
+                        .opacity(axisOpacity)
                 } else {
                     Capsule()
                         .fill(Color.primary.opacity(0.10))
@@ -230,6 +224,26 @@ public struct AdjustmentSlider: View {
         .frame(height: 14)
     }
 
+    /// How strongly the axis is drawn.
+    ///
+    /// Chromatic axes are held back. A saturated gradient beside the photograph
+    /// is the chromatic contamination the neutral surround exists to avoid —
+    /// colour is judged relative to everything in view, not just the frame — and
+    /// at this weight the axis still reads instantly without competing.
+    ///
+    /// Greyscale axes are drawn at full strength, because that reasoning does
+    /// not apply to them: a black-to-white ramp contaminates nothing. Dimming
+    /// them was worse than pointless — a three-point ramp at 60% loses its dark
+    /// end into a dark panel entirely, so the control that was meant to say
+    /// "this reaches the shadows" said nothing at all.
+    private var axisOpacity: Double {
+        switch key.appearance {
+        case .luminance, .highlightRange, .shadowRange: 1
+        case .hue, .temperature, .tint, .sepia, .sharpen, .chroma: 0.6
+        case .plain: 1
+        }
+    }
+
     /// The gradient for a control whose axis is itself a colour.
     ///
     /// A temperature track running blue to amber says what the control does
@@ -261,6 +275,46 @@ public struct AdjustmentSlider: View {
         case .sharpen:
             AnyShapeStyle(LinearGradient(
                 colors: [Color(red: 0.45, green: 0.55, blue: 0.7), Color(red: 0.95, green: 0.95, blue: 1)],
+                startPoint: .leading, endPoint: .trailing
+            ))
+        case .luminance:
+            // The whole range, because exposure and brightness move all of it.
+            //
+            // The dark end stops at 0.16 rather than going to black. A ramp
+            // that reaches true black on a dark panel does not read as a ramp;
+            // it reads as a track that has gone missing at one end. What has to
+            // be legible is the *direction*, and that survives a raised floor.
+            AnyShapeStyle(LinearGradient(
+                colors: [Color(white: 0.16), Color(white: 0.88)],
+                startPoint: .leading, endPoint: .trailing
+            ))
+        case .highlightRange:
+            // Starts near mid and climbs: these controls do nothing in the
+            // shadows, and the track should not imply otherwise.
+            AnyShapeStyle(LinearGradient(
+                colors: [Color(white: 0.34), Color(white: 0.95)],
+                startPoint: .leading, endPoint: .trailing
+            ))
+        case .shadowRange:
+            AnyShapeStyle(LinearGradient(
+                colors: [Color(white: 0.15), Color(white: 0.60)],
+                startPoint: .leading, endPoint: .trailing
+            ))
+        case .chroma:
+            // Grey to colour, and deliberately not grey to *red*.
+            //
+            // Saturation has no hue of its own, so borrowing one states
+            // something false — and a saturated red line beside a portrait is
+            // the exact chromatic contamination the neutral surround exists to
+            // prevent. A soft spread of hues says "more colour" without
+            // claiming which.
+            AnyShapeStyle(LinearGradient(
+                colors: [
+                    Color(white: 0.36),
+                    Color(red: 0.42, green: 0.60, blue: 0.86),
+                    Color(red: 0.88, green: 0.55, blue: 0.42),
+                    Color(red: 0.52, green: 0.82, blue: 0.50),
+                ],
                 startPoint: .leading, endPoint: .trailing
             ))
         case .plain:

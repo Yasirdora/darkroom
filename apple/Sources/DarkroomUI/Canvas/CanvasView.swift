@@ -147,6 +147,12 @@ public struct CanvasArea: View {
                 EmptyCanvas()
             }
 
+            if editor.hasImage, editor.showsCanvasScope {
+                CanvasScope(histogram: editor.histogram)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .transition(.opacity)
+            }
+
             if editor.isComparing {
                 comparisonBadge
             }

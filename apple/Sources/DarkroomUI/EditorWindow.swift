@@ -36,9 +36,9 @@ public struct EditorWindow: View {
                     return true
                 } isTargeted: { isTargetedForDrop = $0 }
 
-            Divider()
-
             InspectorView(editor: editor)
+                .padding(.vertical, InspectorGeometry.panelPadding)
+                .padding(.trailing, InspectorGeometry.panelPadding)
         }
         .frame(minWidth: 900, minHeight: 600)
         .background(Color(red: 0.10, green: 0.10, blue: 0.105))

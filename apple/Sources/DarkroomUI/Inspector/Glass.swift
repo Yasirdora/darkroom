@@ -21,9 +21,20 @@ public import SwiftUI
 /// system that could draw the newer one.
 public extension View {
 
-    /// A floating pane.
+    /// One group of controls inside the panel.
+    ///
+    /// Not glass. The panel is the floating element and carries the material;
+    /// a group is content organised within it. Stacking glass on glass is
+    /// explicitly against macOS 26's guidance, and it looks it — two
+    /// translucent layers over each other go milky and the depth that made the
+    /// first one worth having is lost.
     func inspectorPane(cornerRadius: Double = InspectorGeometry.paneRadius) -> some View {
         modifier(PaneMaterial(cornerRadius: cornerRadius))
+    }
+
+    /// The panel itself: one floating surface, inset from the window's edges.
+    func inspectorPanel(cornerRadius: Double = InspectorGeometry.panelRadius) -> some View {
+        modifier(PanelMaterial(cornerRadius: cornerRadius))
     }
 
     /// Content that scrolls beneath the chrome above it, rather than being cut
@@ -48,8 +59,22 @@ public extension View {
 /// looks slightly off without anyone being able to say why.
 public enum InspectorGeometry {
 
-    /// The pane's own corner radius.
-    public static let paneRadius: Double = 14
+    /// The floating panel's corner radius.
+    ///
+    /// Generous, because it is a card floating over the window rather than a
+    /// column butted against its edge. macOS 26 rounds this size of surface
+    /// hard, and a timid radius is what makes a floating panel look like a
+    /// docked one that has come loose.
+    public static let panelRadius: Double = 20
+
+    /// Space between the window's edge and the panel.
+    public static let panelPadding: Double = 12
+
+    /// Space between the panel's edge and the panes inside it.
+    public static let panelInset: Double = 8
+
+    /// A pane's corner radius: concentric with the panel containing it.
+    public static let paneRadius: Double = panelRadius - panelInset
 
     /// Space between a pane's edge and its contents.
     public static let paneInset: Double = 14
@@ -63,14 +88,17 @@ public enum InspectorGeometry {
     public static let nestedRadius: Double = max(paneRadius - paneInset, 7)
 
     /// Space between panes.
-    ///
-    /// Wider than the old ten, because glass needs room. Two glass surfaces
-    /// close together read as one thick slab and the grouping is lost.
-    public static let paneSpacing: Double = 12
+    public static let paneSpacing: Double = 8
 
-    /// The inspector's overall width, and the margin down each side of it.
+    /// The inspector's overall width.
     public static let panelWidth: Double = 290
-    public static let panelMargin: Double = 10
+
+    /// The width a pane's contents get.
+    ///
+    /// Derived rather than written down, so the curve plot — which is sized in
+    /// points because a `GeometryReader` around it broke dragging — cannot fall
+    /// out of step with the panel it lives in.
+    public static let contentWidth: Double = panelWidth - 2 * panelInset - 2 * paneInset
 }
 
 /// Which material the inspector draws with.
@@ -100,50 +128,59 @@ public enum InspectorMaterial {
         ProcessInfo.processInfo.environment["DARKROOM_LEGACY_MATERIAL"] != nil
 }
 
+/// A group inside the panel: a lighter fill, not a second sheet of glass.
 private struct PaneMaterial: ViewModifier {
+
+    let cornerRadius: Double
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(0.055))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.055), lineWidth: 0.5)
+            }
+            .containerShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+/// The panel: the floating surface, and the only glass in the inspector.
+private struct PanelMaterial: ViewModifier {
 
     let cornerRadius: Double
 
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *), !InspectorMaterial.prefersLegacy {
             content
-                // Tinted a little toward black, deliberately.
+                // Tinted toward black, deliberately.
                 //
                 // Liquid Glass takes its lightness from its surroundings, and
-                // the surroundings here are a photograph being judged. The
+                // the surroundings here are a photograph under judgement. A
                 // panel beside an image has to stay dark and neutral whatever
                 // the image does — the same reason the canvas surround is a
-                // fixed grey — so the material is given a floor it cannot rise
+                // fixed grey — so the material gets a floor it cannot rise
                 // above rather than being left to follow the picture.
                 .glassEffect(
-                    .regular.tint(Color.black.opacity(0.22)),
+                    .regular.tint(Color.black.opacity(0.30)),
                     in: .rect(cornerRadius: cornerRadius)
                 )
-                // Nested shapes read their concentric radius from this.
                 .containerShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         } else {
             content
                 .background {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(Color.white.opacity(0.05))
+                    ZStack {
+                        VisualEffectBackground(material: .sidebar, blending: .behindWindow)
+                        Color(red: 0.055, green: 0.055, blue: 0.062).opacity(0.72)
+                    }
                 }
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5)
+                        .strokeBorder(Color.white.opacity(0.09), lineWidth: 0.5)
                 }
-                .overlay(alignment: .top) {
-                    // Real glass catches light on its top edge. Without this the
-                    // pane goes flat and reads as painted on.
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.10), Color.white.opacity(0)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 2)
-                    .mask { RoundedRectangle(cornerRadius: cornerRadius, style: .continuous) }
-                    .allowsHitTesting(false)
-                }
-                .shadow(color: .black.opacity(0.22), radius: 3, y: 1)
                 .containerShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
     }
@@ -159,17 +196,13 @@ private struct ScrollEdge: ViewModifier {
     }
 }
 
-/// Groups panes so their glass is drawn together.
+/// Stacks the groups down the panel.
 ///
-/// `GlassEffectContainer` renders every glass surface inside it in one pass,
-/// which is both cheaper and more consistent than each pane sampling its
-/// backdrop alone — and it is what allows a pane to morph rather than pop when
-/// it collapses.
-///
-/// The spacing is deliberately zero. It sets the distance at which two glass
-/// shapes flow together into one, and these are separate groups of controls
-/// that should stay separate; a merge would dissolve the grouping the panes
-/// exist to express.
+/// No longer a `GlassEffectContainer`: the panes stopped being glass when the
+/// panel became the floating surface, and there is now exactly one glass layer
+/// to draw. Kept as a named type because it owns the spacing between groups,
+/// which is a decision rather than a number — too tight and the groups read as
+/// one list again.
 public struct GlassPaneStack<Content: View>: View {
 
     private let spacing: Double
@@ -184,13 +217,7 @@ public struct GlassPaneStack<Content: View>: View {
     }
 
     public var body: some View {
-        if #available(macOS 26.0, *), !InspectorMaterial.prefersLegacy {
-            GlassEffectContainer(spacing: 0) {
-                VStack(alignment: .leading, spacing: spacing, content: content)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: spacing, content: content)
-        }
+        VStack(alignment: .leading, spacing: spacing, content: content)
     }
 }
 

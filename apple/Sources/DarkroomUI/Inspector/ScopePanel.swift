@@ -37,7 +37,7 @@ public struct ScopePanel: View {
                 }
             }
         }
-        .padding(.horizontal, InspectorGeometry.panelMargin)
+        .padding(.horizontal, InspectorGeometry.panelInset)
     }
 }
 

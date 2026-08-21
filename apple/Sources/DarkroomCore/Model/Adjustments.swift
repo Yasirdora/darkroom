@@ -109,6 +109,17 @@ extension Adjustments.Key {
         /// warmth ramp, a green-to-magenta tint ramp, and so on. Showing the
         /// effect on the control is faster to read than any label.
         case hue, temperature, tint, sepia, sharpen
+
+        /// Tinted to show which *tones* the control reaches.
+        ///
+        /// A column of identical grey tracks makes every control look alike, and
+        /// the names then carry the whole burden of telling them apart. A ramp
+        /// that runs black to white on Exposure and only mid-to-white on
+        /// Highlights says where each one acts before the label is read at all.
+        case luminance, highlightRange, shadowRange
+
+        /// Grey to coloured, for the controls that add or remove chroma.
+        case chroma
     }
 
     /// User-facing name.
@@ -141,7 +152,16 @@ extension Adjustments.Key {
         case .tint: .tint
         case .sepia: .sepia
         case .sharpen: .sharpen
-        default: .plain
+        case .exposure, .brightness: .luminance
+        case .highlights, .whites: .highlightRange
+        case .shadows, .blacks: .shadowRange
+        case .saturation, .vibrance: .chroma
+        // Contrast, clarity, grain and vignette stay plain, and that is a
+        // decision rather than an omission. Their axis is an amount, not a
+        // tone or a colour, and a tinted track for them would be decoration
+        // pretending to be information — which is worse than a grey line,
+        // because it teaches the eye to stop trusting the coloured ones.
+        case .contrast, .clarity, .grain, .vignette: .plain
         }
     }
 

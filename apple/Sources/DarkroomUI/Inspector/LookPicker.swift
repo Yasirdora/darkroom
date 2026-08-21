@@ -61,7 +61,7 @@ public struct LookPicker: View {
                 }
             }
         }
-        .padding(.horizontal, InspectorGeometry.panelMargin)
+        .padding(.horizontal, InspectorGeometry.panelInset)
     }
 
     /// Shown only when a look is applied — an intensity control with nothing to

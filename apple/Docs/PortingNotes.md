@@ -1131,3 +1131,72 @@ show.
 What remains true, and is worth not dressing up: the Liquid Glass path is the
 only thing in this inspector that has never been seen by anything except the
 person running the app.
+
+## What makes a panel like that one work
+
+Three things, none of them the glass.
+
+**Every track says what its control does.** A column of identical grey lines
+makes the names carry the whole burden of telling the controls apart. Exposure
+now runs a black-to-white ramp; Highlights runs mid-to-white, because it does
+nothing in the shadows and the track should not imply otherwise; Blacks runs
+black-to-mid. Saturation goes grey to coloured. The tonal ones are especially
+worth it — you can see *which part of the range* a control reaches before
+reading a word.
+
+Contrast, Clarity, Grain and Vignette stay grey, and that is a decision rather
+than an omission. Their axis is an amount, not a tone or a colour, so a tinted
+track would be decoration pretending to be information — worse than a grey line,
+because it teaches the eye to stop trusting the coloured ones.
+
+Two corollaries learned by getting them wrong first:
+
+- A greyscale ramp reaching true black **disappears** at its dark end against a
+  dark panel. It reads as a track that has gone missing, not as a ramp. The
+  floor is raised to 0.16; direction is what has to be legible, not absolute
+  black.
+- The 60% dimming on axis gradients exists to stop *chroma* competing with the
+  photograph. It was being applied to greyscale ramps too, where it protects
+  nothing and costs the whole dark half. Chromatic axes stay dimmed; greyscale
+  ones are drawn at full strength.
+
+Saturation's ramp is deliberately not grey-to-red. Saturation has no hue of its
+own, so borrowing one states something false, and a saturated red line beside a
+portrait is exactly the contamination the neutral surround exists to prevent. A
+soft spread of hues says "more colour" without claiming which.
+
+**The panel floats.** Inset from the window's edges with a generous radius,
+rather than a column butted against the right-hand side. The gap is the whole
+point — it is what makes the panel read as sitting above the work instead of
+being bolted to it.
+
+**Starting over is a control, not a word in a corner.** "Reset Adjustments"
+spans the panel's width. It is the thing people reach for when they have lost
+the thread, which is exactly when hunting for a small grey label is least
+welcome.
+
+### The material moved down a layer
+
+The panes were the glass. Now the *panel* is, and the panes are lighter fills
+inside it. Once the panel floats it is the surface with depth, and stacking a
+second translucent layer on it goes milky and destroys the depth that made the
+first one worth having — which is why macOS 26 says not to nest glass. Radii are
+concentric: pane radius is panel radius less the inset between them, derived in
+`InspectorGeometry` rather than written down twice.
+
+## The histogram belongs over the photograph
+
+A histogram is read *while* adjusting — it answers "is that highlight about to
+clip", and the question arises with a hand already on a slider. Keeping the only
+copy behind a Scopes tab forced a choice between seeing the measurement and
+seeing the control.
+
+It floats in the corner of the canvas now, on by default, ⇧⌘H to dismiss. Two
+properties keep it from being a nuisance:
+
+- It **never takes a click**. Every canvas gesture passes through it —
+  `allowsHitTesting(false)`. A panel that floats over the work and quietly
+  swallows gestures is worse than no panel, and this project has paid for that
+  lesson more than once. Its only control is the menu item.
+- It stays **dim and neutral**, because anything with colour or brightness of
+  its own beside an image under judgement changes how that image reads.
