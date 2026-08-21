@@ -11,34 +11,33 @@ public struct ScopePanel: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(title: "Histogram")
-            HistogramView(histogram: editor.histogram)
+        VStack(alignment: .leading, spacing: 10) {
+            InspectorCard(title: "Histogram", id: "scope.histogram", editor: editor) {
+                HistogramView(histogram: editor.histogram)
                 // `.equatable()` so these redraw only when the measurement
                 // changes. Without it every observable change on the editor —
                 // moving a slider, or merely clicking zoom — redraws both
                 // scopes, and the vectorscope is thousands of fills. That was
                 // the cause of zoom feeling like it hung: nothing about the
                 // render was slow, the panel beside it was being rebuilt.
-                .equatable()
-                .frame(height: 120)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 20)
+                    .equatable()
+                    .frame(height: 120)
+            }
 
-            SectionHeader(title: "Vectorscope")
-            VectorscopeView(vectorscope: editor.vectorscope)
-                .equatable()
-                .aspectRatio(1, contentMode: .fit)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+            InspectorCard(title: "Vectorscope", id: "scope.vectorscope", editor: editor) {
+                VStack(alignment: .leading, spacing: 8) {
+                    VectorscopeView(vectorscope: editor.vectorscope)
+                        .equatable()
+                        .aspectRatio(1, contentMode: .fit)
 
-            Text("Distance from centre is saturation. The diagonal is the skin-tone line.")
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 18)
+                    Text("Distance from centre is saturation. The diagonal is the skin-tone line.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
+        .padding(.horizontal, 10)
     }
 }
 

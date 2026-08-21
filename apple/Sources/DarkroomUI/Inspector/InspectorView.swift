@@ -12,6 +12,10 @@ public struct InspectorView: View {
 
     @Bindable public var editor: Editor
 
+    /// What the last automatic white balance rested on, so the pane can say
+    /// when a correction came from very little of the frame.
+    @State private var whiteBalanceEstimate: NeutralSampler.Estimate?
+
     public init(editor: Editor) {
         self.editor = editor
     }
@@ -30,7 +34,7 @@ public struct InspectorView: View {
                     case .scopes: ScopePanel(editor: editor)
                     }
                 }
-                .padding(.vertical, 14)
+                .padding(.vertical, 12)
             }
             .scrollIndicators(.automatic)
 
@@ -38,7 +42,21 @@ public struct InspectorView: View {
             footer
         }
         .frame(width: 290)
-        .background(Color(red: 0.078, green: 0.078, blue: 0.086))
+        .background {
+            // Vibrancy from behind the *window*, not from the photograph.
+            // Sampling the image would tint the panel with whatever is on the
+            // canvas and shift it as the grade changed, and colour is judged
+            // against everything in view — which is the same reason the canvas
+            // surround is a flat neutral.
+            ZStack {
+                VisualEffectBackground(material: .sidebar, blending: .behindWindow)
+                // Held dark and neutral over the vibrancy. A bright desktop
+                // would otherwise lighten the panel beside the photograph, and
+                // the surround has to stay put to be worth anything.
+                Color(red: 0.055, green: 0.055, blue: 0.062).opacity(0.72)
+            }
+            .ignoresSafeArea()
+        }
         .environment(\.colorScheme, .dark)
     }
 
@@ -78,12 +96,33 @@ public struct InspectorView: View {
     // MARK: - Adjustments
 
     private var adjustments: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            InputProfileSection(editor: editor)
+        VStack(alignment: .leading, spacing: 10) {
+            InspectorCard(title: "Source", id: "source", editor: editor) {
+                InputProfileSection(editor: editor)
+            }
 
             ForEach(Adjustments.Key.Group.allCases) { group in
-                Section {
+                InspectorCard(
+                    title: group.title,
+                    id: "adjust.\(group.id)",
+                    editor: editor,
+                    reset: { editor.resetGroup(group) },
+                    isModified: !editor.isGroupNeutral(group),
+                    accessory: {
+                        if group == .whiteBalance {
+                            AutoWhiteBalanceButton(
+                                editor: editor,
+                                estimate: $whiteBalanceEstimate
+                            )
+                        }
+                    }
+                ) {
                     VStack(spacing: 14) {
+                        if group == .whiteBalance {
+                            WhiteBalanceNote(estimate: whiteBalanceEstimate)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+
                         ForEach(group.keys) { key in
                             AdjustmentSlider(
                                 key: key,
@@ -98,13 +137,10 @@ public struct InspectorView: View {
                             )
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
-                } header: {
-                    SectionHeader(title: group.title)
                 }
             }
         }
+        .padding(.horizontal, 10)
     }
 
     // MARK: - Footer
@@ -145,29 +181,12 @@ public struct InspectorView: View {
     }
 }
 
-/// A section heading in the inspector.
-struct SectionHeader: View {
-    let title: String
-
-    var body: some View {
-        Text(title.uppercased())
-            .font(.system(size: 10, weight: .semibold))
-            .tracking(0.7)
-            .foregroundStyle(.tertiary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 9)
-    }
-}
-
 /// How the file is read — the stage before the grade.
 struct InputProfileSection: View {
     @Bindable var editor: Editor
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            SectionHeader(title: "Source")
-
             VStack(alignment: .leading, spacing: 4) {
                 Picker("", selection: Binding(
                     get: { editor.state.inputProfile },
@@ -194,8 +213,6 @@ struct InputProfileSection: View {
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 18)
         }
     }
 }

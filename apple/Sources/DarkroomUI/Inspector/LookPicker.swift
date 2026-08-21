@@ -20,33 +20,48 @@ public struct LookPicker: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            intensity
-
-            noneButton
+        VStack(alignment: .leading, spacing: 10) {
+            if !editor.state.look.isNone {
+                InspectorCard(
+                    title: "Applied Look",
+                    id: "looks.applied",
+                    editor: editor,
+                    reset: { editor.update({ $0.look = .none }, label: "Remove Look") },
+                    isModified: true
+                ) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        intensity
+                        noneButton
+                    }
+                }
+            }
 
             ForEach(FilmCategory.ordered) { category in
                 let stocks = FilmStock.allStocks.filter { $0.category == category }
                 if !stocks.isEmpty {
-                    SectionHeader(title: category.title)
-                    VStack(spacing: 1) {
-                        ForEach(stocks) { stock in
-                            LookRow(
-                                stock: stock,
-                                isSelected: selectedID == stock.id
-                            ) {
-                                editor.update(
-                                    { $0.look = .filmStock(id: stock.id) },
-                                    label: stock.name
-                                )
+                    InspectorCard(
+                        title: category.title,
+                        id: "looks.\(category.id)",
+                        editor: editor
+                    ) {
+                        VStack(spacing: 1) {
+                            ForEach(stocks) { stock in
+                                LookRow(
+                                    stock: stock,
+                                    isSelected: selectedID == stock.id
+                                ) {
+                                    editor.update(
+                                        { $0.look = .filmStock(id: stock.id) },
+                                        label: stock.name
+                                    )
+                                }
                             }
                         }
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 16)
                 }
             }
         }
+        .padding(.horizontal, 10)
     }
 
     /// Shown only when a look is applied — an intensity control with nothing to
@@ -78,8 +93,6 @@ public struct LookPicker: View {
                 )
                 .controlSize(.small)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
         }
     }
 
@@ -101,8 +114,6 @@ public struct LookPicker: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(editor.state.look.isNone ? Color.accentColor : .secondary)
-        .padding(.horizontal, 10)
-        .padding(.bottom, 14)
     }
 }
 

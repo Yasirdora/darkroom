@@ -44,16 +44,16 @@ public struct CurveEditor: View {
     /// gesture, so redrawing for it costs nothing.
     @State private var selected: Int?
 
-    /// The plot's side length.
+    /// The plot's side length, defined once in `CurveEditing` so the geometry
+    /// and the checks over it cannot drift apart.
     ///
-    /// A constant rather than a `GeometryReader` measurement. The inspector is a
-    /// fixed 290 points wide with 16 either side, so the plot is always 258 —
-    /// and a `GeometryReader` here was actively harmful: every point moved
-    /// mutates the editor, which invalidates the window body, re-lays out the
-    /// reader and rebuilds the canvas and its gesture *while the drag is still
-    /// running*. A fixed frame keeps the view identity stable, so an in-flight
-    /// gesture is not torn down underneath itself.
-    static let plotSize: Double = 258
+    /// A constant rather than a `GeometryReader` measurement, and that is
+    /// deliberate: every point moved mutates the editor, which invalidates the
+    /// window body, re-lays out the reader and rebuilds the canvas and its
+    /// gesture *while the drag is still running*. A fixed frame keeps the view
+    /// identity stable, so an in-flight gesture is not torn down underneath
+    /// itself.
+    static var plotSize: Double { CurveEditing.plotSize }
 
     public init(editor: Editor) {
         self.editor = editor
@@ -86,12 +86,23 @@ public struct CurveEditor: View {
     // MARK: - Body
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "Tone Curve")
-            channelPicker
-            plot
-            footer
+        InspectorCard(
+            title: "Tone Curve",
+            id: "curves",
+            editor: editor,
+            reset: {
+                editor.update({ setCurve(nil, in: &$0) }, label: "Reset Curve")
+                selected = nil
+            },
+            isModified: currentCurve != nil
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                channelPicker
+                plot
+                footer
+            }
         }
+        .padding(.horizontal, 10)
         // Focus lives on the container, not the canvas. Attaching `.focusable()`
         // to the canvas made it compete with the drag for the first click.
         .focusable()
@@ -125,7 +136,6 @@ public struct CurveEditor: View {
                 .accessibilityAddTraits(channel == option ? [.isSelected] : [])
             }
         }
-        .padding(.horizontal, 16)
     }
 
     private func channelName(_ option: Channel) -> String {
@@ -158,17 +168,7 @@ public struct CurveEditor: View {
                     .contentShape(Rectangle())
             }
 
-            Button("Reset") {
-                editor.update({ setCurve(nil, in: &$0) }, label: "Reset Curve")
-                selected = nil
-            }
-            .font(.system(size: 10))
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .contentShape(Rectangle())
-            .disabled(currentCurve == nil)
         }
-        .padding(.horizontal, 16)
     }
 
     // MARK: - Plot

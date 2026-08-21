@@ -24,7 +24,7 @@ public enum CurveHandleChecks {
         ]
     }
 
-    static let size = 258.0
+    static let size = CurveEditing.plotSize
 
     /// Curves with a mix of straight and shaped segments.
     static var subjects: [(name: String, points: [ToneCurve.ControlPoint])] {

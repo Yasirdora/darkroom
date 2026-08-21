@@ -184,13 +184,14 @@ extension Adjustments.Key {
 
     /// Sections the inspector groups controls into.
     public enum Group: String, Sendable, CaseIterable, Identifiable {
-        case light, colour, detail
+        case light, whiteBalance, colour, detail
 
         public var id: String { rawValue }
 
         public var title: String {
             switch self {
             case .light: "Light"
+            case .whiteBalance: "White Balance"
             case .colour: "Color"
             case .detail: "Detail"
             }
@@ -200,7 +201,12 @@ extension Adjustments.Key {
         public var keys: [Adjustments.Key] {
             switch self {
             case .light: [.exposure, .brightness, .contrast, .highlights, .shadows, .whites, .blacks]
-            case .colour: [.saturation, .vibrance, .hue, .temperature, .tint]
+            // White balance is its own group, ahead of the rest of colour.
+            // It is a correction — there is a right answer, and it is the
+            // first decision made, because saturation and vibrance judged over
+            // an uncorrected cast have to be judged again afterwards.
+            case .whiteBalance: [.temperature, .tint]
+            case .colour: [.saturation, .vibrance, .hue]
             case .detail: [.clarity, .sharpen, .vignette, .grain, .sepia]
             }
         }

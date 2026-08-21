@@ -30,7 +30,7 @@ public enum CurveGestureChecks {
         ]
     }
 
-    static let size = 258.0
+    static let size = CurveEditing.plotSize
     static var sCurve: [ToneCurve.ControlPoint] { ToneCurve.defaultS.points }
     static var identity: [ToneCurve.ControlPoint] { ToneCurve.identity.points }
 

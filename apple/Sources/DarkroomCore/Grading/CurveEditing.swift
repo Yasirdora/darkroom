@@ -34,6 +34,15 @@ public enum CurveEditing {
         }
     }
 
+    /// The curve plot's side length in the inspector.
+    ///
+    /// Lives here rather than in the view because the editing geometry and the
+    /// checks over it both need the real number, and a constant duplicated in
+    /// two modules is a constant that will disagree with itself. The inspector
+    /// is 290 points wide, less 10 either side for the pane and 14 either side
+    /// inside it.
+    public static let plotSize: Double = 242
+
     /// How close a click must be to a point, in plot coordinates, to grab it.
     ///
     /// Generously larger than the drawn dot. A four-point target is something

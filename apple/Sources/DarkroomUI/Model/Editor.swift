@@ -247,6 +247,89 @@ public final class Editor {
         update({ $0 = EditState(inheriting: $0) }, label: "Reset")
     }
 
+    /// Neutralises the image's colour cast.
+    ///
+    /// Measured on the file as *decoded* rather than as graded. The grade
+    /// contains contrast, saturation and curves, none of which invert, so a
+    /// correction derived from the graded result could only ever approximate —
+    /// and would change every time it was pressed. Measured before all of it,
+    /// the white balance model inverts exactly and pressing twice does nothing
+    /// the second time.
+    ///
+    /// - Returns: What the measurement found, so the interface can say how much
+    ///   of the frame it rested on. `nil` when there is nothing to measure.
+    @discardableResult
+    public func autoWhiteBalance() -> NeutralSampler.Estimate? {
+        guard let sourceImage else { return nil }
+
+        let decoded = GradePipeline.image(
+            from: sourceImage,
+            applying: EditState(inheriting: state),
+            includeCrop: true
+        )
+        guard let estimate = NeutralSampler.estimate(decoded, in: renderContext.ciContext) else {
+            return nil
+        }
+
+        let settings = WhiteBalance.neutralising(
+            (r: estimate.colour.x, g: estimate.colour.y, b: estimate.colour.z),
+            limitedTo: Adjustments.Key.temperature.range
+        )
+
+        update({ state in
+            state.adjustments.temperature = settings.temperature
+            state.adjustments.tint = settings.tint
+        }, label: "Auto White Balance")
+
+        return estimate
+    }
+
+    /// Returns one group of adjustments to rest, leaving the rest alone.
+    ///
+    /// Separate from `resetGrade` because they answer different questions.
+    /// Starting over is rare; undoing one line of thinking — the colour went
+    /// wrong, the tone was fine — happens constantly, and doing it by dragging
+    /// five sliders back to zero by eye never quite lands on zero.
+    public func resetGroup(_ group: Adjustments.Key.Group) {
+        update({ state in
+            for key in group.keys { state.adjustments[key] = key.neutralValue }
+        }, label: "Reset \(group.title)")
+    }
+
+    /// Whether every control in a group is at rest.
+    public func isGroupNeutral(_ group: Adjustments.Key.Group) -> Bool {
+        group.keys.allSatisfy { state.adjustments[$0] == $0.neutralValue }
+    }
+
+    // MARK: - Inspector panes
+
+    /// Panes the user has closed.
+    ///
+    /// Stored as the *closed* set rather than the open one so that a pane added
+    /// in a later version starts open. Someone who has never expressed an
+    /// opinion about a group should be shown it, not have it hidden by the
+    /// absence of a preference.
+    ///
+    /// This is view state, not part of the edit: it is not saved with a
+    /// photograph, not carried in a shared grade, and not undoable. Closing a
+    /// pane says something about the person, not the picture.
+    public private(set) var collapsedSections: Set<String> = Set(
+        UserDefaults.standard.stringArray(forKey: Editor.collapsedSectionsKey) ?? []
+    )
+
+    private static let collapsedSectionsKey = "inspector.collapsedSections"
+
+    public func isSectionExpanded(_ id: String) -> Bool {
+        !collapsedSections.contains(id)
+    }
+
+    public func setSectionExpanded(_ id: String, _ expanded: Bool) {
+        if expanded { collapsedSections.remove(id) } else { collapsedSections.insert(id) }
+        UserDefaults.standard.set(
+            Array(collapsedSections).sorted(), forKey: Editor.collapsedSectionsKey
+        )
+    }
+
     // MARK: - Undo
 
     private struct Step {

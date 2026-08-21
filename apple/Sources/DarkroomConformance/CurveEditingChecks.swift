@@ -23,8 +23,10 @@ public enum CurveEditingChecks {
         ]
     }
 
-    /// The plot's side length in the inspector, at its real width.
-    static let size = 258.0
+    /// The plot's side length in the inspector, taken from the editor itself
+    /// rather than written out again — a duplicated constant is one that
+    /// eventually stops matching the thing it describes.
+    static let size = CurveEditing.plotSize
 
     /// A five-point S-curve, the shape a curve editor is usually opened on.
     static var sCurve: [ToneCurve.ControlPoint] { ToneCurve.defaultS.points }

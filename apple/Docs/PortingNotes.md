@@ -949,3 +949,82 @@ from the very constant under mutation, and nothing asserting the far end of a
 newly shaped segment. Sometimes the answer is "the mutation changed nothing",
 and that is worth writing down rather than papering over with a test that only
 appears to cover it.
+
+## Glass that cannot tint the photograph
+
+The inspector is grouped into panes with real vibrancy behind them, and the
+vibrancy comes from `NSVisualEffectView` blending *behind the window* rather
+than SwiftUI's `.regularMaterial`. Two reasons, and the second is the important
+one.
+
+`.regularMaterial` renders as a flat fill when what is behind it is opaque,
+which here it always is — the canvas fills the window and is deliberately
+opaque. Nothing to sample, no vibrancy.
+
+More to the point, a translucent panel that samples the *photograph* takes on
+that photograph's colour and shifts as the grade changes. Colour is judged
+relative to everything in view, which is the entire reason the canvas surround
+is a fixed neutral; a panel that drifted warm as the image did would quietly
+undo that. Blending behind the window samples the desktop instead, so the
+panel's tint is fixed by something that does not move while you work. A dark
+neutral scrim over it keeps a bright wallpaper from lightening the surround.
+
+The glass is built in layers, which is what separates it from a rounded grey
+rectangle: translucent fill, hairline border, and a highlight two points tall
+along the top edge only. The last one is doing most of the work — real glass
+catches light on its top edge, and without it the pane reads as painted on.
+
+Panes remember whether they are open, in `UserDefaults`, as the set of *closed*
+ones. Storing the closed set rather than the open set means a pane added in a
+later version starts open: someone who has never expressed an opinion about a
+group should be shown it, not have it hidden by the absence of a preference.
+
+This is view state and not part of `EditState`. It is not saved with a
+photograph, not carried in a shared grade, and not undoable — closing a pane
+says something about the person, not the picture.
+
+## Automatic white balance is algebra, not estimation
+
+The white balance model was built invertible and this finally uses it. The
+gains are exponential and always multiply to one:
+
+    temperature t →  r × 1.35ᵗ,          b × 1.35⁻ᵗ
+    tint        v →  g × 1.25ᵛ,   r and b × 1.25⁻ᵛᐟ²
+
+Unit product makes the model exactly two-dimensional in log space, so a
+measured cast inverts in closed form: scale the wanted gains by the geometric
+mean and take logarithms, and green alone gives tint while the red-to-blue
+ratio alone gives temperature. No search, no iteration, no residual. Correcting
+an already-corrected image asks for no change, which is what makes the button
+safe to press twice.
+
+It is measured on the file as *decoded*, never as graded. Contrast, saturation
+and curves do not invert, so a correction derived from the graded result could
+only approximate — and would move again every time it was pressed.
+
+**Grey-world is not used unless there is nothing else.** Averaging the whole
+frame is the textbook answer and it fails on the pictures people actually take:
+a plate of salmon averages orange, so grey-world drives the frame cyan trying
+to neutralise the food. What is measured instead is only the part of the image
+already plausibly neutral — mid-tone, low-saturation pixels, which is where a
+cast shows. Very dark pixels are excluded because quantisation swamps the
+ratio; very bright ones because a clipped channel has lost the excess that
+identifies the cast, so a blown highlight always measures neutral however
+coloured the light was. When a frame genuinely has no neutral content the
+threshold widens in stages and the last stage is grey-world — and the interface
+says so, because a correction resting on nothing should admit it.
+
+## A check that restates the formula tests nothing
+
+Two directional checks were written for white balance — that a warm cast asks
+for a negative temperature, that a green cast asks for a negative tint — and
+both were tautologies. `temperature = (log b − log r) / 2 log 1.35` makes the
+first true by construction, and it would stay true with the whole convention
+inverted.
+
+What can actually be wrong is what the sign *means* in the pixel path, so that
+is what is checked now: a positive temperature has to add red and remove blue
+in `ColorGrade`, and a measured cast pushed through the real grading path has
+to come out narrower than it went in. Both would fail if the convention flipped
+anywhere along the chain; neither can be satisfied by the formula agreeing with
+itself.
