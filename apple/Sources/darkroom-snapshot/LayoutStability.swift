@@ -154,8 +154,11 @@ enum LayoutStability {
             }
         }
 
-        guard failures.isEmpty else {
+        let clipping = ClippingCheck.run()
+
+        guard failures.isEmpty, clipping.isEmpty else {
             print("\nLayout stability — FAIL")
+            for problem in clipping { print("  ✗ \(problem)") }
             for failure in failures {
                 print("  ✗ \(failure.control)")
                 print("      \(failure.states.0): \(describe(failure.sizes.0))")

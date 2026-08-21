@@ -115,12 +115,32 @@ public struct InspectorCard<Content: View, Accessory: View>: View {
                 content()
                     .padding(.horizontal, InspectorGeometry.paneInset)
                     .padding(.bottom, InspectorGeometry.paneInset)
-                    // Fades on the way out and in, so a collapsing pane reads as
-                    // its contents leaving rather than the pane snapping shut.
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    // Opacity only — no `.move`.
+                    //
+                    // Sliding the content while the pane also shrinks is two
+                    // motions at once, and it reads as the contents being
+                    // yanked out rather than covered up. A real disclosure
+                    // behaves like a blind: what is inside stays where it is and
+                    // is progressively hidden by the edge coming down over it.
+                    // The clip below does that; all the content has to do is
+                    // stop being visible before the edge reaches it.
+                    //
+                    // The two directions are timed differently on purpose.
+                    // Collapsing, the content goes quickly and the pane closes
+                    // over an already-empty space — fading in step with the
+                    // height would smear the last frames. Expanding, the space
+                    // opens first and the content arrives into the room made
+                    // for it, which is why the insertion waits.
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(.easeOut(duration: 0.18).delay(0.08)),
+                        removal: .opacity.animation(.easeIn(duration: 0.10))
+                    ))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // `inspectorPane()` clips as well as fills. Deliberately one call: the
+        // clip is what stops a collapsing pane drawing its contents over its
+        // neighbours, and it was lost once already by living separately.
         .inspectorPane()
     }
 
@@ -130,6 +150,9 @@ public struct InspectorCard<Content: View, Accessory: View>: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.tertiary)
+                    // Turns with the pane rather than on its own schedule. A
+                    // chevron that finishes before the pane does makes the pane
+                    // look slow.
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
             }
 
@@ -177,7 +200,12 @@ public struct InspectorCard<Content: View, Accessory: View>: View {
         .contentShape(Rectangle())
         .onTapGesture {
             guard isCollapsible else { return }
-            withAnimation(.snappy(duration: 0.26, extraBounce: 0.02)) {
+            // No bounce. `.snappy` overshoots slightly, which is right for
+            // something arriving and wrong for a height: an overshooting pane
+            // springs past its closed size and settles back, and every pane
+            // below it wobbles in sympathy. `.smooth` is the same spring
+            // critically damped — it arrives and stops.
+            withAnimation(.smooth(duration: 0.3)) {
                 editor.setSectionExpanded(id, !isExpanded)
             }
         }

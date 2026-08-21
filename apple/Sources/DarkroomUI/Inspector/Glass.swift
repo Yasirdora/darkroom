@@ -129,21 +129,32 @@ public enum InspectorMaterial {
 }
 
 /// A group inside the panel: a lighter fill, not a second sheet of glass.
+///
+/// The clip is part of the material, not something call sites remember to add.
+/// It was a separate `.clipped()` at one call site until the background moved
+/// in here and the clip did not come with it — after which a collapsing pane
+/// drew its contents over its neighbours on the way out.
+///
+/// That is the second load-bearing modifier this project has lost by separating
+/// it from the thing that needed it (the first was `.highPriorityGesture` on a
+/// control inside a `ScrollView`). The lesson is not to remember harder. A
+/// requirement that lives in the component cannot be dropped by refactoring the
+/// caller, and a shape that fills, outlines and clips is one idea rather than
+/// three that happen to be adjacent.
 private struct PaneMaterial: ViewModifier {
 
     let cornerRadius: Double
 
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
     func body(content: Content) -> some View {
         content
-            .background {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.white.opacity(0.055))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.055), lineWidth: 0.5)
-            }
-            .containerShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .clipShape(shape)
+            .background { shape.fill(Color.white.opacity(0.055)) }
+            .overlay { shape.strokeBorder(Color.white.opacity(0.055), lineWidth: 0.5) }
+            .containerShape(shape)
     }
 }
 
@@ -152,9 +163,16 @@ private struct PanelMaterial: ViewModifier {
 
     let cornerRadius: Double
 
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *), !InspectorMaterial.prefersLegacy {
             content
+                // Clipped here for the same reason the panes are: the shape
+                // that carries the material also bounds what may draw inside it.
+                .clipShape(shape)
                 // Tinted toward black, deliberately.
                 //
                 // Liquid Glass takes its lightness from its surroundings, and
@@ -167,21 +185,18 @@ private struct PanelMaterial: ViewModifier {
                     .regular.tint(Color.black.opacity(0.30)),
                     in: .rect(cornerRadius: cornerRadius)
                 )
-                .containerShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .containerShape(shape)
         } else {
             content
+                .clipShape(shape)
                 .background {
                     ZStack {
                         VisualEffectBackground(material: .sidebar, blending: .behindWindow)
                         Color(red: 0.055, green: 0.055, blue: 0.062).opacity(0.72)
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.09), lineWidth: 0.5)
-                }
-                .containerShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay { shape.strokeBorder(Color.white.opacity(0.09), lineWidth: 0.5) }
+                .containerShape(shape)
         }
     }
 }

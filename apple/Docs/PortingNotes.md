@@ -1200,3 +1200,59 @@ properties keep it from being a nuisance:
   lesson more than once. Its only control is the menu item.
 - It stays **dim and neutral**, because anything with colour or brightness of
   its own beside an image under judgement changes how that image reads.
+
+## A collapse is a blind, not a departure
+
+The disclosure animation looked cheap, and the cause was a dropped modifier
+rather than a styling choice. `InspectorCard` ended with `.clipped()`; when the
+pane's background moved into `inspectorPane()`, the clip did not move with it.
+Unclipped, a `.move(edge: .top)` transition draws the leaving content *outside*
+the pane and over its neighbours on the way past.
+
+That is the second load-bearing modifier lost by separating it from the thing
+that needed it — the first was `.highPriorityGesture` on a control inside a
+`ScrollView`, also reported by the user, also a refactor casualty. Remembering
+harder is not a strategy. **The clip now lives inside the material**, where a
+shape that fills, outlines and clips is one idea rather than three that happen
+to be adjacent, and no caller can drop it.
+
+The timing was wrong too. Sliding the content while the pane also shrinks is two
+motions at once and reads as the contents being yanked out rather than covered
+up. A real disclosure behaves like a blind: what is inside stays where it is and
+is progressively hidden by the edge coming down over it. So the transition is
+opacity only, and the clip does the rest.
+
+The two directions are timed differently. Collapsing, the content goes quickly
+(0.10s) and the pane closes over an already-empty space, because fading in step
+with the height smears the last frames. Expanding, the space opens first and the
+content arrives into the room made for it, so the insertion waits 0.08s.
+
+And no bounce. `.snappy` overshoots, which is right for something arriving and
+wrong for a height — an overshooting pane springs past its closed size and every
+pane below it wobbles in sympathy. `.smooth` is the same spring critically
+damped: it arrives and stops.
+
+### Checking a fault that only exists mid-animation
+
+`darkroom-snapshot --layout` now also verifies the clip. It cannot animate, but
+it does not need to: constrain the material to less height than its content
+needs, render, and look for pixels where none belong. If it clips, the area
+below stays empty.
+
+Two things that check got wrong before it worked, both worth keeping:
+
+- **Probing through `InspectorCard` tested nothing.** A `.frame` applied outside
+  the material cannot clip — frames set a layout slot and let an oversized child
+  draw straight out of it — so the card clipped to its own full height and the
+  overflow belonged to the probe. The requirement lives in the material, so the
+  material is what gets constrained.
+- **The panel cannot be probed this way at all.** Its material hosts an
+  `NSVisualEffectView`, and an AppKit subview composites over SwiftUI content in
+  a `cacheDisplay` pass, so the probe reports that nothing was drawn. That says
+  something about the capture and nothing about the clip. Only the pane is
+  guarded, and the gap is recorded rather than papered over with a check that
+  appears to cover it.
+
+The check also asserts the opposite error — that the pane drew *something* —
+because a clip so aggressive that nothing showed would pass a leak test while
+being far worse.
