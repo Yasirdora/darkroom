@@ -173,18 +173,22 @@ private struct PanelMaterial: ViewModifier {
                 // Clipped here for the same reason the panes are: the shape
                 // that carries the material also bounds what may draw inside it.
                 .clipShape(shape)
-                // Tinted toward black, deliberately.
+                // Untinted.
                 //
-                // Liquid Glass takes its lightness from its surroundings, and
-                // the surroundings here are a photograph under judgement. A
-                // panel beside an image has to stay dark and neutral whatever
-                // the image does — the same reason the canvas surround is a
-                // fixed grey — so the material gets a floor it cannot rise
-                // above rather than being left to follow the picture.
-                .glassEffect(
-                    .regular.tint(Color.black.opacity(0.30)),
-                    in: .rect(cornerRadius: cornerRadius)
-                )
+                // It carried a black tint to force the panel dark, which was
+                // the wrong instrument for the job twice over. Apple reserves
+                // tinting for emphasis — "Tinting should only be used to bring
+                // emphasis to primary elements and actions" — and the Regular
+                // variant already "provides legibility regardless of context",
+                // so tinting it fights the adaptation that makes it work.
+                //
+                // Darkness is an *appearance* decision, and it is now made
+                // where appearance decisions belong: the window is dark, so the
+                // material resolves dark. Nothing about the photograph reaches
+                // it, because the panel sits beside the canvas rather than over
+                // it — which is separately what Apple asks for: "avoid
+                // intersections between content and Liquid Glass."
+                .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
                 .containerShape(shape)
         } else {
             content
@@ -254,28 +258,30 @@ public struct GlassCapsuleButtonStyle: ButtonStyle {
 
     @ViewBuilder
     private func background(pressed: Bool) -> some View {
-        if #available(macOS 26.0, *), !InspectorMaterial.prefersLegacy {
-            // `.interactive()` is what gives Liquid Glass its response to a
-            // press — the surface flexes and the highlight travels. Rebuilding
-            // that by hand would be a poor copy of something already there.
-            Capsule().fill(.clear)
-                .glassEffect(
-                    .regular.tint(Color.accentColor.opacity(isEnabled ? 0.35 : 0)).interactive(),
-                    in: .capsule
-                )
-        } else {
-            Capsule().fill(Color.accentColor.opacity(isEnabled ? (pressed ? 0.28 : 0.16) : 0.06))
-        }
+        // A fill, not glass — and that is Apple's rule rather than a
+        // preference. This button sits *on* the panel, and the panel is the
+        // glass:
+        //
+        //   "Always avoid glass on glass. Stacking Liquid Glass elements on top
+        //    of each other can quickly make the interface feel cluttered and
+        //    confusing."
+        //
+        //   "When placing elements on top of Liquid Glass, avoid applying the
+        //    material to both layers. Instead, use fills, transparency, and
+        //    vibrancy for the top elements to make them feel like a thin
+        //    overlay that is part of the material."
+        //
+        // It shipped as glass here, which is double translucency over the same
+        // backdrop — the button went milky and stopped reading as a control.
+        Capsule().fill(Color.accentColor.opacity(isEnabled ? (pressed ? 0.30 : 0.18) : 0.06))
     }
 }
 
-
 /// The lit surface behind the selected inspector tab.
 ///
-/// Its own view so the two generations stay side by side and legible. On macOS
-/// 26 it is Liquid Glass carrying a `glassEffectID`, which is what lets it
-/// travel between tabs as one moving surface instead of vanishing here and
-/// appearing there.
+/// A vibrant fill rather than glass. It sits on the panel, and the panel is the
+/// app's one glass surface — see the note on ``GlassCapsuleButtonStyle`` for
+/// why anything on top of it uses fills instead.
 public struct TabSelection: View {
 
     private let namespace: Namespace.ID
@@ -285,18 +291,17 @@ public struct TabSelection: View {
     }
 
     public var body: some View {
-        if #available(macOS 26.0, *), !InspectorMaterial.prefersLegacy {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(.clear)
-                .glassEffect(
-                    .regular.tint(Color.accentColor.opacity(0.28)),
-                    in: .rect(cornerRadius: 9)
-                )
-                .glassEffectID("inspector.tab", in: namespace)
-        } else {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.accentColor.opacity(0.12))
-                .matchedGeometryEffect(id: "inspector.tab", in: namespace)
-        }
+        // A vibrant fill rather than a second sheet of glass, for the same
+        // reason as the Auto button above. `matchedGeometryEffect` still gives
+        // it the travelling motion — the selection slides between tabs rather
+        // than cutting, which was the point of using `glassEffectID` and is not
+        // lost by dropping it.
+        RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(Color.accentColor.opacity(0.20))
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.28), lineWidth: 0.5)
+            }
+            .matchedGeometryEffect(id: "inspector.tab", in: namespace)
     }
 }

@@ -30,15 +30,18 @@ func render<V: View>(_ view: V, size: NSSize, to url: URL) throws {
         backing: .buffered,
         defer: false
     )
-    // Set on the window, not left to the environment.
+    // Deliberately *light*.
     //
-    // A command-line tool has no bundle and does not inherit the system
-    // appearance, and — more importantly — `.environment(\.colorScheme, .dark)`
-    // does not change `NSAppearance` at all. It tells SwiftUI which colours to
-    // resolve; it does not tell AppKit which materials to draw. Anything backed
-    // by AppKit — a visual effect view, Liquid Glass — reads the appearance and
-    // would come out light beside a dark interface.
-    window.appearance = NSAppearance(named: .darkAqua)
+    // The app forces its own dark appearance with `.preferredColorScheme`, and
+    // opening the probe window light means every render re-proves that it does.
+    // If that ever regressed, these snapshots would come back pale rather than
+    // silently agreeing with a system setting that happened to match.
+    //
+    // The distinction that makes this worth testing: `.environment(\.colorScheme,
+    // .dark)` tells SwiftUI which colours to resolve but does not change
+    // `NSAppearance`, so anything backed by AppKit — a visual effect view,
+    // Liquid Glass — would still come out light.
+    window.appearance = NSAppearance(named: .aqua)
     window.contentView = hosting
     hosting.layoutSubtreeIfNeeded()
 

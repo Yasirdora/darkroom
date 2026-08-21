@@ -1256,3 +1256,69 @@ Two things that check got wrong before it worked, both worth keeping:
 The check also asserts the opposite error — that the pane drew *something* —
 because a clip so aggressive that nothing showed would pass a leak test while
 being far worse.
+
+## One instrument, one home
+
+The app was drawing a histogram in three places: floating over the canvas, at
+the top of the Scopes tab, and behind the tone curve. The first two were the
+same readout twice, added in successive sessions without removing the earlier
+one — a duplication nobody designed, which is how most duplication arrives.
+
+The histogram now lives over the photograph, where it is read while adjusting.
+The Scopes tab keeps the vectorscope, which needs room and is not consulted
+continuously, and carries a one-line footnote saying where the histogram went —
+a line rather than a titled pane, because a box announcing "it is elsewhere" is
+a signpost standing exactly where the thing should be.
+
+The third was never a duplicate. The histogram behind the tone curve is the
+curve's own reference: it shows where an image's tones fall against the line
+being pulled through them, and it is read with the curve or not at all. Every
+serious curve editor draws it and none of them consider it a second histogram.
+
+## Audited against the guidelines, and two things were wrong
+
+Apple's rules for Liquid Glass, checked rather than recalled.
+
+**"Always avoid glass on glass."** The Auto button and the selected-tab
+indicator both applied `.glassEffect` while sitting *on* the glass panel. Two
+translucent layers over one backdrop go milky, and the button had stopped
+reading as a control. Apple's replacement is explicit: *"When placing elements
+on top of Liquid Glass, avoid applying the material to both layers. Instead, use
+fills, transparency, and vibrancy for the top elements to make them feel like a
+thin overlay that is part of the material."* Both are accent fills now. The
+selection still travels between tabs — `matchedGeometryEffect` gives that motion
+without `glassEffectID`.
+
+There is now exactly **one** `.glassEffect` in the app, on the panel. That
+matches *"it is best reserved for the navigation layer that floats above the
+content of your app."*
+
+**Tinting was the wrong instrument.** The panel's glass carried a black tint to
+force it dark. Apple reserves tinting for emphasis — *"Tinting should only be
+used to bring emphasis to primary elements and actions"* — and the Regular
+variant already *"provides legibility regardless of context"*, so tinting it
+fights the adaptation that makes it work.
+
+Darkness is an appearance decision and is now made where those belong:
+`.preferredColorScheme(.dark)` on the window. This matters more than it sounds,
+because of a distinction that has already caused one wrong diagnosis in these
+notes: `.environment(\.colorScheme, .dark)` tells SwiftUI which colours to
+resolve but does **not** change `NSAppearance`, so anything backed by AppKit — a
+visual effect view, Liquid Glass — would still resolve light on a light system.
+
+`darkroom-snapshot` now opens its probe window with the *light* appearance on
+purpose, so every render re-proves that the app forces its own. A regression
+there would come back pale instead of silently agreeing with whatever the system
+happened to be set to.
+
+### Where we depart, and why
+
+Apple asks for *"no intersections between content and Liquid Glass"* in steady
+states. The inspector complies: it sits beside the canvas, never over it.
+
+The floating histogram deliberately does not use the material at all. Apple's
+answer for chrome over media is the Clear variant with a dimming layer, and
+Clear exists to let *"the richness of the content underneath come through"* —
+which is the one thing a measuring instrument must not do. A scope that took
+colour from the image it is measuring would be worse than no scope. It stays a
+flat neutral fill, for the same reason the canvas surround is a fixed grey.

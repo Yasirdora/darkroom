@@ -42,6 +42,20 @@ public struct EditorWindow: View {
         }
         .frame(minWidth: 900, minHeight: 600)
         .background(Color(red: 0.10, green: 0.10, blue: 0.105))
+        // Dark whatever the system is set to, and set here rather than by
+        // overriding the colour scheme inside a view.
+        //
+        // `.environment(\.colorScheme, .dark)` tells SwiftUI which colours to
+        // resolve; it does not change `NSAppearance`, so anything backed by
+        // AppKit — a visual effect view, Liquid Glass — would still resolve
+        // light on a light system. `.preferredColorScheme` sets the window's
+        // appearance, which both of them read.
+        //
+        // Not a preference to expose. A grading tool is dark for the same
+        // reason its canvas surround is neutral: a bright interface beside a
+        // photograph changes how that photograph reads, and every application
+        // in this field converges on it.
+        .preferredColorScheme(.dark)
         .alert(
             "Couldn't open that file",
             isPresented: Binding(
