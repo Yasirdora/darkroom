@@ -2,7 +2,7 @@
 //
 // Run `npm run generate:stocks` from the repository root to regenerate.
 //
-// 4 blackAndWhite stock profiles.
+// 7 blackAndWhite stock profiles.
 
 import Foundation
 
@@ -120,6 +120,93 @@ extension FilmStock {
         halationWarmth: 0.45,
         print: PrintProfile(contrast: 4.4, pivot: 0.44),
         grain: FilmGrainSpec(amount: 28.0, warmth: 0.45, size: 0.5),
+        preservesSkinTones: false,
+        isStylized: false
+    )
+
+    public static let tmax100 = FilmStock(
+        id: "tmax100",
+        name: "T-Max 100",
+        category: .blackAndWhite,
+        summary: "Tabular grain · extended red response",
+        redCurve: ChannelCurve(gamma: 0.88, toe: 0.08, toeLift: 0.03, shoulder: 0.87, shoulderStrength: 0.36, gain: 1.0),
+        greenCurve: ChannelCurve(gamma: 0.88, toe: 0.08, toeLift: 0.03, shoulder: 0.87, shoulderStrength: 0.36, gain: 1.0),
+        blueCurve: ChannelCurve(gamma: 0.88, toe: 0.08, toeLift: 0.03, shoulder: 0.87, shoulderStrength: 0.36, gain: 1.0),
+        dyeMatrix: ColorMatrix3x3(
+            0.38, 0.46, 0.16,
+            0.38, 0.46, 0.16,
+            0.38, 0.46, 0.16
+        ),
+        scanner: .neutral,
+        shadowHue: 0.0,
+        shadowTint: 0.0,
+        highlightHue: 0.0,
+        highlightTint: 0.0,
+        latitude: 0.85,
+        saturation: 0.0,
+        vibrance: 0.0,
+        halation: 0.01,
+        halationWarmth: 0.5,
+        print: PrintProfile(contrast: 3.2, pivot: 0.45),
+        grain: FilmGrainSpec(amount: 6.0, warmth: 0.45, size: 0.22),
+        preservesSkinTones: false,
+        isStylized: false
+    )
+
+    public static let fp4plus = FilmStock(
+        id: "fp4plus",
+        name: "FP4 Plus",
+        category: .blackAndWhite,
+        summary: "Classic emulsion · dark skies · smooth mids",
+        redCurve: ChannelCurve(gamma: 0.92, toe: 0.08, toeLift: 0.035, shoulder: 0.86, shoulderStrength: 0.4, gain: 1.0),
+        greenCurve: ChannelCurve(gamma: 0.92, toe: 0.08, toeLift: 0.035, shoulder: 0.86, shoulderStrength: 0.4, gain: 1.0),
+        blueCurve: ChannelCurve(gamma: 0.92, toe: 0.08, toeLift: 0.035, shoulder: 0.86, shoulderStrength: 0.4, gain: 1.0),
+        dyeMatrix: ColorMatrix3x3(
+            0.28, 0.53, 0.19,
+            0.28, 0.53, 0.19,
+            0.28, 0.53, 0.19
+        ),
+        scanner: .neutral,
+        shadowHue: 0.0,
+        shadowTint: 0.0,
+        highlightHue: 0.0,
+        highlightTint: 0.0,
+        latitude: 0.82,
+        saturation: 0.0,
+        vibrance: 0.0,
+        halation: 0.02,
+        halationWarmth: 0.5,
+        print: PrintProfile(contrast: 3.2, pivot: 0.45),
+        grain: FilmGrainSpec(amount: 14.0, warmth: 0.5, size: 0.35),
+        preservesSkinTones: false,
+        isStylized: false
+    )
+
+    public static let delta3200 = FilmStock(
+        id: "delta3200",
+        name: "Delta 3200",
+        category: .blackAndWhite,
+        summary: "High-speed · pronounced honest grain",
+        redCurve: ChannelCurve(gamma: 0.95, toe: 0.09, toeLift: 0.045, shoulder: 0.84, shoulderStrength: 0.45, gain: 1.0),
+        greenCurve: ChannelCurve(gamma: 0.95, toe: 0.09, toeLift: 0.045, shoulder: 0.84, shoulderStrength: 0.45, gain: 1.0),
+        blueCurve: ChannelCurve(gamma: 0.95, toe: 0.09, toeLift: 0.045, shoulder: 0.84, shoulderStrength: 0.45, gain: 1.0),
+        dyeMatrix: ColorMatrix3x3(
+            0.35, 0.47, 0.18,
+            0.35, 0.47, 0.18,
+            0.35, 0.47, 0.18
+        ),
+        scanner: .neutral,
+        shadowHue: 0.0,
+        shadowTint: 0.0,
+        highlightHue: 0.0,
+        highlightTint: 0.0,
+        latitude: 0.95,
+        saturation: 0.0,
+        vibrance: 0.0,
+        halation: 0.02,
+        halationWarmth: 0.5,
+        print: PrintProfile(contrast: 3.2, pivot: 0.45),
+        grain: FilmGrainSpec(amount: 44.0, warmth: 0.5, size: 0.7),
         preservesSkinTones: false,
         isStylized: false
     )

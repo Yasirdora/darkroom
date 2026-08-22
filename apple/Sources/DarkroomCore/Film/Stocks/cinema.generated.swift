@@ -2,7 +2,7 @@
 //
 // Run `npm run generate:stocks` from the repository root to regenerate.
 //
-// 8 cinema stock profiles.
+// 10 cinema stock profiles.
 
 import Foundation
 
@@ -236,6 +236,64 @@ extension FilmStock {
         halationWarmth: 0.85,
         print: PrintProfile(contrast: 3.4, pivot: 0.44),
         grain: nil,
+        preservesSkinTones: false,
+        isStylized: false
+    )
+
+    public static let cinestill800t = FilmStock(
+        id: "cinestill800t",
+        name: "CineStill 800T",
+        category: .cinema,
+        summary: "Tungsten cinema · signature warm halation",
+        redCurve: ChannelCurve(gamma: 0.88, toe: 0.1, toeLift: 0.04, shoulder: 0.82, shoulderStrength: 0.36, gain: 1.0),
+        greenCurve: ChannelCurve(gamma: 0.9, toe: 0.1, toeLift: 0.035, shoulder: 0.83, shoulderStrength: 0.34, gain: 1.0),
+        blueCurve: ChannelCurve(gamma: 0.86, toe: 0.11, toeLift: 0.05, shoulder: 0.81, shoulderStrength: 0.38, gain: 1.04),
+        dyeMatrix: ColorMatrix3x3(
+            1.0, 0.0, -0.02,
+            -0.01, 0.99, 0.02,
+            -0.04, 0.02, 1.05
+        ),
+        scanner: .ecn2,
+        shadowHue: 198.0,
+        shadowTint: 0.16,
+        highlightHue: 30.0,
+        highlightTint: 0.1,
+        latitude: 0.92,
+        saturation: 1.0,
+        vibrance: 0.04,
+        halation: 0.14,
+        halationWarmth: 0.95,
+        print: PrintProfile(contrast: 3.4, pivot: 0.44),
+        grain: FilmGrainSpec(amount: 30.0, warmth: 0.55, size: 0.55),
+        preservesSkinTones: false,
+        isStylized: false
+    )
+
+    public static let cinestill50d = FilmStock(
+        id: "cinestill50d",
+        name: "CineStill 50D",
+        category: .cinema,
+        summary: "Daylight cinema · fine grain · gentle halation",
+        redCurve: ChannelCurve(gamma: 0.9, toe: 0.09, toeLift: 0.035, shoulder: 0.84, shoulderStrength: 0.36, gain: 1.0),
+        greenCurve: ChannelCurve(gamma: 0.92, toe: 0.09, toeLift: 0.032, shoulder: 0.85, shoulderStrength: 0.34, gain: 1.0),
+        blueCurve: ChannelCurve(gamma: 0.9, toe: 0.1, toeLift: 0.04, shoulder: 0.84, shoulderStrength: 0.36, gain: 1.0),
+        dyeMatrix: ColorMatrix3x3(
+            1.02, 0.0, -0.02,
+            -0.01, 1.0, 0.01,
+            -0.03, 0.01, 1.02
+        ),
+        scanner: .ecn2,
+        shadowHue: 205.0,
+        shadowTint: 0.1,
+        highlightHue: 45.0,
+        highlightTint: 0.08,
+        latitude: 0.9,
+        saturation: 1.02,
+        vibrance: 0.05,
+        halation: 0.08,
+        halationWarmth: 0.9,
+        print: PrintProfile(contrast: 3.4, pivot: 0.44),
+        grain: FilmGrainSpec(amount: 10.0, warmth: 0.5, size: 0.35),
         preservesSkinTones: false,
         isStylized: false
     )

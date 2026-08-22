@@ -55,6 +55,7 @@ public enum GradePipeline {
             let corrected = result
             result = LookFilter.apply(cube, to: result, intensity: state.lookIntensity)
             result = QualifierFilter.apply(state.qualifier, graded: result, source: corrected)
+            result = applyStockGrain(for: state.look, intensity: state.lookIntensity, to: result)
         }
 
         result = GradeFilter.applySpatialStages(state.adjustments, to: result)
@@ -94,6 +95,8 @@ public enum GradePipeline {
             trace.append(("look", result.extent))
             result = QualifierFilter.apply(state.qualifier, graded: result, source: corrected)
             trace.append(("qualifier", result.extent))
+            result = applyStockGrain(for: state.look, intensity: state.lookIntensity, to: result)
+            trace.append(("stock grain", result.extent))
         }
 
         result = GradeFilter.applySpatialStages(state.adjustments, to: result)
@@ -118,6 +121,22 @@ public enum GradePipeline {
             to: InputProfileFilter.apply(state, to: image),
             includeCrop: includeCrop
         )
+    }
+
+    /// The grain a film stock carries, if the look names one.
+    ///
+    /// Part of the look rather than of the spatial adjustments: it belongs to
+    /// the emulsion, so it goes on with the cube — and before the user's own
+    /// detail work, which should never sharpen grain it did not make.
+    static func applyStockGrain(
+        for look: Look,
+        intensity: Double,
+        to image: CIImage
+    ) -> CIImage {
+        guard case let .filmStock(id) = look,
+              let spec = FilmStock.stock(id: id)?.grain
+        else { return image }
+        return GradeFilter.applyStockGrain(spec, intensity: intensity, to: image)
     }
 
     // MARK: - Geometry

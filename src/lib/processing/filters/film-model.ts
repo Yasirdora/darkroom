@@ -110,8 +110,17 @@ const applyCurve = (value: number, curve: ChannelCurve, under: number, over: num
     const t = x / Math.max(toeLen, 0.001);
     x = toeLift + t * t * (toeLen - toeLift);
   } else {
+    // Continues from `toeLen`, where the toe left off — not from `toeLift`.
+    //
+    // The toe maps [0, toeLen] onto [toeLift, toeLen]: it lifts black and
+    // arrives at the boundary carrying the input's own value. Restarting the
+    // gamma segment at `toeLift` dropped the output by exactly
+    // (toeLen − toeLift) at that boundary — around 13 code values on a typical
+    // stock — and did it independently per channel, so the cliff came with a
+    // colour fringe. It sat in the deep shadows, which is where a step of that
+    // size shows most.
     const normalized = (x - toeLen) / Math.max(1 - toeLen, 0.001);
-    x = toeLift + Math.pow(normalized, 1 / Math.max(gamma, 0.55)) * (1 - toeLift);
+    x = toeLen + Math.pow(normalized, 1 / Math.max(gamma, 0.55)) * (1 - toeLen);
   }
 
   if (x > shoulder) {

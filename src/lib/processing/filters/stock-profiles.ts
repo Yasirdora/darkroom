@@ -32,6 +32,9 @@ const PRINT_BY_CATEGORY: Record<FilterCategory, PrintProfile> = {
   // Motion picture print stock is the most contrasty link in the whole chain —
   // it is built to be projected through, not looked at.
   cinema: { contrast: 3.4, pivot: 0.44 },
+  // Instant film develops itself, and it shows: the positive is soft where a
+  // lab print is shaped, and the blacks never quite arrive.
+  instant: { contrast: 2.0, pivot: 0.47 },
   social: { contrast: 2.4, pivot: 0.46 },
   classic: { contrast: 2.7, pivot: 0.45 },
   // Printing grade, in the darkroom sense. Black and white paper is graded by
@@ -179,6 +182,48 @@ const KODAK_STOCKS: FilmStockProfile[] = [
     latitude: 0.93, saturation: 0.95, vibrance: 0.03, halation: 0.05, halationWarmth: 0.88,
     grain: { amount: 12, warmth: 0.48, size: 0.38 },
   }),
+  stock({
+    id: 'kodachrome64',
+    // The stock every film simulation is measured against. Kodachrome's
+    // signature is not warmth in general but *where* the warmth lives: reds
+    // and yellows go rich while blues stay honest, and the blacks are deeper
+    // than any negative dares. K14 was a slide process, so the latitude is
+    // short and the grain is nearly invisible.
+    print: { contrast: 4.2, pivot: 0.44 },
+    label: 'Kodachrome 64',
+    category: 'kodak',
+    description: 'Iconic slide · rich warm reds · deep blacks',
+    curves: {
+      r: curve({ gamma: 0.8, toe: 0.06, toeLift: 0.015, shoulder: 0.89, shoulderStr: 0.2, gain: 1.03 }),
+      g: curve({ gamma: 0.82, toe: 0.06, toeLift: 0.015, shoulder: 0.9, shoulderStr: 0.18 }),
+      b: curve({ gamma: 0.84, toe: 0.07, toeLift: 0.018, shoulder: 0.89, shoulderStr: 0.2, gain: 0.98 }),
+    },
+    dyeMatrix: dye([1.05, 0.01, -0.02], [0, 1.0, -0.01], [-0.03, 0.01, 0.99]),
+    scanner: 'neutral',
+    shadowHue: 220, shadowTint: 0.05, highlightHue: 42, highlightTint: 0.07,
+    latitude: 0.5, saturation: 1.12, vibrance: 0.08, halation: 0.02, halationWarmth: 0.7,
+    grain: { amount: 5, warmth: 0.5, size: 0.25 },
+  }),
+  stock({
+    id: 'ektachrome100',
+    // The modern slide: what E100 trades against Velvia is exactly saturation
+    // for neutrality. Clean colour, honest blues, and grain fine enough to
+    // scan without a fight.
+    print: { contrast: 3.8, pivot: 0.45 },
+    label: 'Ektachrome E100',
+    category: 'kodak',
+    description: 'Modern slide · neutral clean colour',
+    curves: {
+      r: curve({ gamma: 0.85, toe: 0.06, toeLift: 0.02, shoulder: 0.88, shoulderStr: 0.24 }),
+      g: curve({ gamma: 0.86, toe: 0.06, toeLift: 0.02, shoulder: 0.89, shoulderStr: 0.22 }),
+      b: curve({ gamma: 0.85, toe: 0.07, toeLift: 0.022, shoulder: 0.88, shoulderStr: 0.24, gain: 1.01 }),
+    },
+    dyeMatrix: dye([1.01, 0, -0.01], [0, 1.01, 0], [-0.01, 0.01, 1.02]),
+    scanner: 'neutral',
+    shadowHue: 210, shadowTint: 0.05, highlightHue: 55, highlightTint: 0.04,
+    latitude: 0.55, saturation: 1.06, vibrance: 0.06, halation: 0.02, halationWarmth: 0.6,
+    grain: { amount: 4, warmth: 0.4, size: 0.2 },
+  }),
 ];
 
 // ─── Fuji ──────────────────────────────────────────────────────────────────────
@@ -302,6 +347,27 @@ const FUJI_STOCKS: FilmStockProfile[] = [
     shadowHue: 30, shadowTint: 0.04, highlightHue: 40, highlightTint: 0.03,
     latitude: 0.85, saturation: 0, vibrance: 0, halation: 0.03, halationWarmth: 0.7,
     grain: { amount: 8, warmth: 0.55, size: 0.3 },
+  }),
+  stock({
+    id: 'natura1600',
+    // Fuji's high-speed emulsion, and the rare fast stock chosen for its
+    // colour rather than in spite of it. The speed costs grain, which is the
+    // point of reaching for it, and the contrast stays gentle enough to hold
+    // skin in bad light.
+    print: { contrast: 2.6, pivot: 0.46 },
+    label: 'Natura 1600',
+    category: 'fuji',
+    description: 'High-speed · warm soft grain',
+    curves: {
+      r: curve({ gamma: 0.93, toe: 0.1, toeLift: 0.05, shoulder: 0.85, shoulderStr: 0.42 }),
+      g: curve({ gamma: 0.94, toe: 0.1, toeLift: 0.048, shoulder: 0.86, shoulderStr: 0.4 }),
+      b: curve({ gamma: 0.92, toe: 0.11, toeLift: 0.055, shoulder: 0.84, shoulderStr: 0.44 }),
+    },
+    dyeMatrix: dye([1.02, 0.01, 0], [0.01, 1.01, 0.01], [-0.02, 0.02, 1.0]),
+    scanner: 'frontier',
+    shadowHue: 190, shadowTint: 0.1, highlightHue: 45, highlightTint: 0.09,
+    latitude: 0.95, saturation: 0.98, vibrance: 0.05, halation: 0.04, halationWarmth: 0.75,
+    grain: { amount: 34, warmth: 0.6, size: 0.6 },
   }),
 ];
 
@@ -432,6 +498,91 @@ const CINEMA_STOCKS: FilmStockProfile[] = [
     shadowHue: 18, shadowTint: 0.14, highlightHue: 25, highlightTint: 0.14,
     latitude: 0.82, saturation: 0.92, vibrance: 0.03, halation: 0.04, halationWarmth: 0.85,
   }),
+  stock({
+    id: 'cinestill800t',
+    // Vision3 500T with the rem-jet removed, and removing that backing is
+    // what makes it CineStill: bright points bleed warm into their
+    // surroundings, which is why the halation figure is three times anything
+    // else in the catalogue. Tungsten-balanced, so the blue layer leads and
+    // daylight reads cool until it is timed.
+    label: 'CineStill 800T',
+    category: 'cinema',
+    description: 'Tungsten cinema · signature warm halation',
+    curves: {
+      r: curve({ gamma: 0.88, toe: 0.1, toeLift: 0.04, shoulder: 0.82, shoulderStr: 0.36 }),
+      g: curve({ gamma: 0.9, toe: 0.1, toeLift: 0.035, shoulder: 0.83, shoulderStr: 0.34 }),
+      b: curve({ gamma: 0.86, toe: 0.11, toeLift: 0.05, shoulder: 0.81, shoulderStr: 0.38, gain: 1.04 }),
+    },
+    dyeMatrix: dye([1.0, 0, -0.02], [-0.01, 0.99, 0.02], [-0.04, 0.02, 1.05]),
+    scanner: 'ecn2',
+    shadowHue: 198, shadowTint: 0.16, highlightHue: 30, highlightTint: 0.1,
+    latitude: 0.92, saturation: 1.0, vibrance: 0.04, halation: 0.14, halationWarmth: 0.95,
+    grain: { amount: 30, warmth: 0.55, size: 0.55 },
+  }),
+  stock({
+    id: 'cinestill50d',
+    // The daylight twin: same removed backing, finer emulsion. Crisp where
+    // the 800T is atmospheric, with the halation present but polite.
+    label: 'CineStill 50D',
+    category: 'cinema',
+    description: 'Daylight cinema · fine grain · gentle halation',
+    curves: {
+      r: curve({ gamma: 0.9, toe: 0.09, toeLift: 0.035, shoulder: 0.84, shoulderStr: 0.36 }),
+      g: curve({ gamma: 0.92, toe: 0.09, toeLift: 0.032, shoulder: 0.85, shoulderStr: 0.34 }),
+      b: curve({ gamma: 0.9, toe: 0.1, toeLift: 0.04, shoulder: 0.84, shoulderStr: 0.36 }),
+    },
+    dyeMatrix: dye([1.02, 0, -0.02], [-0.01, 1.0, 0.01], [-0.03, 0.01, 1.02]),
+    scanner: 'ecn2',
+    shadowHue: 205, shadowTint: 0.1, highlightHue: 45, highlightTint: 0.08,
+    latitude: 0.9, saturation: 1.02, vibrance: 0.05, halation: 0.08, halationWarmth: 0.9,
+    grain: { amount: 10, warmth: 0.5, size: 0.35 },
+  }),
+];
+
+// ─── Instant ─────────────────────────────────────────────────────────────────
+
+const INSTANT_STOCKS: FilmStockProfile[] = [
+  stock({
+    id: 'polaroid600',
+    // An instant print is a positive developed in the open, and it looks it:
+    // the blacks stay milky, the greens go chemical, and the whole frame sits
+    // a stop softer than anything a lab would sign off on. None of that is a
+    // flaw to correct — it is the reason the format survived its own film.
+    print: { contrast: 2.0, pivot: 0.47 },
+    label: 'Polaroid 600',
+    category: 'instant',
+    description: 'Instant · milky blacks · chemical warmth',
+    curves: {
+      r: curve({ gamma: 1.0, toe: 0.1, toeLift: 0.085, shoulder: 0.88, shoulderStr: 0.5 }),
+      g: curve({ gamma: 1.01, toe: 0.1, toeLift: 0.08, shoulder: 0.89, shoulderStr: 0.48 }),
+      b: curve({ gamma: 1.02, toe: 0.11, toeLift: 0.075, shoulder: 0.88, shoulderStr: 0.5, gain: 0.98 }),
+    },
+    dyeMatrix: dye([1.0, 0.02, 0.01], [0.01, 0.99, 0.02], [-0.02, 0.03, 0.98]),
+    scanner: 'neutral',
+    shadowHue: 160, shadowTint: 0.09, highlightHue: 45, highlightTint: 0.1,
+    latitude: 0.7, saturation: 0.85, vibrance: 0.02, halation: 0.03, halationWarmth: 0.8,
+    grain: { amount: 8, warmth: 0.6, size: 0.5 },
+  }),
+  stock({
+    id: 'sx70',
+    // The folding SLR's film: softer still than the 600, dreamier, with a
+    // fade that starts before the chemistry has even settled. The look
+    // wedding shooters imitate with three sliders and never quite reach.
+    print: { contrast: 1.8, pivot: 0.48 },
+    label: 'SX-70 Sonar',
+    category: 'instant',
+    description: 'Instant · dreamy fade · soft pastel',
+    curves: {
+      r: curve({ gamma: 1.02, toe: 0.1, toeLift: 0.095, shoulder: 0.89, shoulderStr: 0.52 }),
+      g: curve({ gamma: 1.03, toe: 0.1, toeLift: 0.09, shoulder: 0.9, shoulderStr: 0.5 }),
+      b: curve({ gamma: 1.04, toe: 0.11, toeLift: 0.085, shoulder: 0.89, shoulderStr: 0.52, gain: 0.97 }),
+    },
+    dyeMatrix: dye([1.0, 0.02, 0.01], [0.02, 1.0, 0.02], [-0.02, 0.03, 0.97]),
+    scanner: 'neutral',
+    shadowHue: 150, shadowTint: 0.1, highlightHue: 42, highlightTint: 0.12,
+    latitude: 0.65, saturation: 0.8, vibrance: 0.02, halation: 0.04, halationWarmth: 0.85,
+    grain: { amount: 10, warmth: 0.62, size: 0.55 },
+  }),
 ];
 
 // ─── B&W ─────────────────────────────────────────────────────────────────────
@@ -502,6 +653,65 @@ const BW_STOCKS: FilmStockProfile[] = [
     shadowHue: 0, shadowTint: 0, highlightHue: 0, highlightTint: 0,
     latitude: 0.55, saturation: 0, vibrance: 0, halation: 0.01, halationWarmth: 0.45,
     grain: { amount: 28, warmth: 0.45, size: 0.5 },
+  }),
+  stock({
+    id: 'tmax100',
+    // Tabular grain: the flatter crystal is why a 100-speed stock can hold
+    // this little grain at all. The extended red response is the real
+    // signature — skin goes a touch lighter and warmer than on a classic
+    // emulsion, which is why portrait shooters reached for it.
+    label: 'T-Max 100',
+    category: 'bw',
+    description: 'Tabular grain · extended red response',
+    curves: {
+      r: curve({ gamma: 0.88, toe: 0.08, toeLift: 0.03, shoulder: 0.87, shoulderStr: 0.36 }),
+      g: curve({ gamma: 0.88, toe: 0.08, toeLift: 0.03, shoulder: 0.87, shoulderStr: 0.36 }),
+      b: curve({ gamma: 0.88, toe: 0.08, toeLift: 0.03, shoulder: 0.87, shoulderStr: 0.36 }),
+    },
+    dyeMatrix: dye([0.38, 0.46, 0.16], [0.38, 0.46, 0.16], [0.38, 0.46, 0.16]),
+    scanner: 'neutral',
+    shadowHue: 0, shadowTint: 0, highlightHue: 0, highlightTint: 0,
+    latitude: 0.85, saturation: 0, vibrance: 0, halation: 0.01, halationWarmth: 0.5,
+    grain: { amount: 6, warmth: 0.45, size: 0.22 },
+  }),
+  stock({
+    id: 'fp4plus',
+    // A classic cubic emulsion with the least red response in the drawer:
+    // skies darken, lips deepen, and the mid-tones stay long and smooth.
+    // It rewards exposure discipline the way a tabular grain never asks for
+    // it.
+    label: 'FP4 Plus',
+    category: 'bw',
+    description: 'Classic emulsion · dark skies · smooth mids',
+    curves: {
+      r: curve({ gamma: 0.92, toe: 0.08, toeLift: 0.035, shoulder: 0.86, shoulderStr: 0.4 }),
+      g: curve({ gamma: 0.92, toe: 0.08, toeLift: 0.035, shoulder: 0.86, shoulderStr: 0.4 }),
+      b: curve({ gamma: 0.92, toe: 0.08, toeLift: 0.035, shoulder: 0.86, shoulderStr: 0.4 }),
+    },
+    dyeMatrix: dye([0.28, 0.53, 0.19], [0.28, 0.53, 0.19], [0.28, 0.53, 0.19]),
+    scanner: 'neutral',
+    shadowHue: 0, shadowTint: 0, highlightHue: 0, highlightTint: 0,
+    latitude: 0.82, saturation: 0, vibrance: 0, halation: 0.02, halationWarmth: 0.5,
+    grain: { amount: 14, warmth: 0.5, size: 0.35 },
+  }),
+  stock({
+    id: 'delta3200',
+    // Shot at 1600 more often than 3200, and built to forgive exactly that.
+    // The grain is the look — large, honest, and impossible to mistake for
+    // digital noise — and the latitude is the widest in the set.
+    label: 'Delta 3200',
+    category: 'bw',
+    description: 'High-speed · pronounced honest grain',
+    curves: {
+      r: curve({ gamma: 0.95, toe: 0.09, toeLift: 0.045, shoulder: 0.84, shoulderStr: 0.45 }),
+      g: curve({ gamma: 0.95, toe: 0.09, toeLift: 0.045, shoulder: 0.84, shoulderStr: 0.45 }),
+      b: curve({ gamma: 0.95, toe: 0.09, toeLift: 0.045, shoulder: 0.84, shoulderStr: 0.45 }),
+    },
+    dyeMatrix: dye([0.35, 0.47, 0.18], [0.35, 0.47, 0.18], [0.35, 0.47, 0.18]),
+    scanner: 'neutral',
+    shadowHue: 0, shadowTint: 0, highlightHue: 0, highlightTint: 0,
+    latitude: 0.95, saturation: 0, vibrance: 0, halation: 0.02, halationWarmth: 0.5,
+    grain: { amount: 44, warmth: 0.5, size: 0.7 },
   }),
 ];
 
@@ -815,6 +1025,7 @@ export const ALL_STOCK_PROFILES: FilmStockProfile[] = [
   ...KODAK_STOCKS,
   ...FUJI_STOCKS,
   ...CINEMA_STOCKS,
+  ...INSTANT_STOCKS,
   ...SOCIAL_STOCKS,
   ...CLASSIC_STOCKS,
   ...BW_STOCKS,

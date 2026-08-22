@@ -229,6 +229,14 @@ public enum LookFilter {
     static func bakedCube(for stock: FilmStock) -> ColorCube {
         bakedCubes.cube(for: stock)
     }
+
+    /// A stock's baked cube, shared with the render path's cache.
+    ///
+    /// The picker's thumbnails render through the same cubes the canvas does —
+    /// baking twice would be the slowest possible way to show the same colours.
+    public static func cube(for stock: FilmStock) -> ColorCube {
+        bakedCube(for: stock)
+    }
 }
 
 extension Double {

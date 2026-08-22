@@ -10,6 +10,9 @@ public struct LookPicker: View {
 
     @Bindable public var editor: Editor
 
+    /// Per-stock previews, filled in after the picker appears.
+    @State private var thumbnails: [String: CGImage] = [:]
+
     public init(editor: Editor) {
         self.editor = editor
     }
@@ -48,6 +51,7 @@ public struct LookPicker: View {
                             ForEach(stocks) { stock in
                                 LookRow(
                                     stock: stock,
+                                    thumbnail: thumbnails[stock.id],
                                     isSelected: selectedID == stock.id
                                 ) {
                                     editor.update(
@@ -62,6 +66,24 @@ public struct LookPicker: View {
             }
         }
         .padding(.horizontal, InspectorGeometry.panelInset)
+        // Rebuilt when the photograph changes: a preview of "Portra 400" that
+        // still shows the previous image is worse than none at all.
+        .task(id: editor.sourceURL) {
+            thumbnails = [:]
+            let base = LookThumbnails.baseImage(source: editor.sourceImage)
+            for stock in FilmStock.allStocks {
+                if Task.isCancelled { return }
+                if let image = LookThumbnails.render(stock, over: base, context: editor.renderContext) {
+                    thumbnails[stock.id] = image
+                }
+                // Every few stocks, let the display catch up — the picker
+                // filling in progressively reads better than a pause and a
+                // completed grid.
+                if FilmStock.allStocks.firstIndex(of: stock).map({ $0 % 6 == 5 }) == true {
+                    await Task.yield()
+                }
+            }
+        }
     }
 
     /// Shown only when a look is applied — an intensity control with nothing to
@@ -120,6 +142,7 @@ public struct LookPicker: View {
 /// One stock in the list.
 struct LookRow: View {
     let stock: FilmStock
+    let thumbnail: CGImage?
     let isSelected: Bool
     let action: () -> Void
 
@@ -128,6 +151,20 @@ struct LookRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 9) {
+                // The stock applied to the open photograph — the difference
+                // between choosing a look and choosing a name.
+                if let thumbnail {
+                    Image(decorative: thumbnail, scale: 1)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 44, height: 30)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                } else {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.white.opacity(0.06))
+                        .frame(width: 44, height: 30)
+                }
+
                 VStack(alignment: .leading, spacing: 1) {
                     Text(stock.name)
                         .font(.system(size: 12, weight: isSelected ? .semibold : .regular))

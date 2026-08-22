@@ -2,7 +2,7 @@
 //
 // Run `npm run generate:stocks` from the repository root to regenerate.
 //
-// 7 fuji stock profiles.
+// 8 fuji stock profiles.
 
 import Foundation
 
@@ -207,6 +207,35 @@ extension FilmStock {
         halationWarmth: 0.7,
         print: PrintProfile(contrast: 3.0, pivot: 0.45),
         grain: FilmGrainSpec(amount: 8.0, warmth: 0.55, size: 0.3),
+        preservesSkinTones: false,
+        isStylized: false
+    )
+
+    public static let natura1600 = FilmStock(
+        id: "natura1600",
+        name: "Natura 1600",
+        category: .fuji,
+        summary: "High-speed · warm soft grain",
+        redCurve: ChannelCurve(gamma: 0.93, toe: 0.1, toeLift: 0.05, shoulder: 0.85, shoulderStrength: 0.42, gain: 1.0),
+        greenCurve: ChannelCurve(gamma: 0.94, toe: 0.1, toeLift: 0.048, shoulder: 0.86, shoulderStrength: 0.4, gain: 1.0),
+        blueCurve: ChannelCurve(gamma: 0.92, toe: 0.11, toeLift: 0.055, shoulder: 0.84, shoulderStrength: 0.44, gain: 1.0),
+        dyeMatrix: ColorMatrix3x3(
+            1.02, 0.01, 0.0,
+            0.01, 1.01, 0.01,
+            -0.02, 0.02, 1.0
+        ),
+        scanner: .frontier,
+        shadowHue: 190.0,
+        shadowTint: 0.1,
+        highlightHue: 45.0,
+        highlightTint: 0.09,
+        latitude: 0.95,
+        saturation: 0.98,
+        vibrance: 0.05,
+        halation: 0.04,
+        halationWarmth: 0.75,
+        print: PrintProfile(contrast: 2.6, pivot: 0.46),
+        grain: FilmGrainSpec(amount: 34.0, warmth: 0.6, size: 0.6),
         preservesSkinTones: false,
         isStylized: false
     )

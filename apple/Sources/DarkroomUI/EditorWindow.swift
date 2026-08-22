@@ -135,11 +135,15 @@ public struct EditorWindow: View {
             }
 
             Button {
-                exportPhotograph()
+                sharePhotograph()
             } label: {
-                Label("Export", systemImage: "square.and.arrow.up")
+                Label("Share", systemImage: "square.and.arrow.up")
             }
-            .help("Export the graded image")
+            // The share glyph is a contract: it opens the system's share
+            // sheet, with AirDrop, Photos and Messages already in it. Export
+            // to a file lives in the File menu (⌘E), with a save panel that
+            // matches what it does.
+            .help("Share the graded image")
             .disabled(!editor.hasImage)
         }
     }
@@ -172,5 +176,46 @@ public struct EditorWindow: View {
             } ?? format
             editor.export(to: url, format: chosen)
         }
+    }
+
+    /// Hands the graded image to the system share sheet.
+    ///
+    /// Rendered at full resolution through the same pipeline the canvas and
+    /// the exporter use — a share that quietly downscaled would be a bug
+    /// reported as "Photos looks softer than Darkroom".
+    func sharePhotograph() {
+        guard let graded = editor.renderedImage, !graded.extent.isInfinite,
+              let cgImage = editor.renderContext.makeCGImage(graded, in: graded.extent)
+        else { return }
+
+        let image = NSImage(cgImage: cgImage, size: graded.extent.size)
+        ShareSheet.present(items: [image])
+    }
+}
+
+/// Shows an `NSSharingServicePicker`, keeping it alive for as long as it is
+/// on screen.
+///
+/// The picker is not retained by AppKit once presented: drop the last strong
+/// reference and the sheet closes mid-gesture. One shared holder is enough —
+/// a second share replaces the first rather than stacking on it.
+@MainActor
+private enum ShareSheet {
+    private static var activePicker: NSSharingServicePicker?
+
+    static func present(items: [Any]) {
+        let picker = NSSharingServicePicker(items: items)
+        activePicker = picker
+
+        // Anchored to the key window's top-right, where the toolbar button
+        // that summoned it lives. AppKit needs a view and a rect; the window's
+        // content view is the honest answer available from SwiftUI.
+        guard let contentView = NSApp.keyWindow?.contentView else { return }
+        let anchor = NSRect(
+            x: contentView.bounds.maxX - 320,
+            y: contentView.bounds.maxY - 44,
+            width: 1, height: 1
+        )
+        picker.show(relativeTo: anchor, of: contentView, preferredEdge: .minY)
     }
 }

@@ -20,6 +20,7 @@ export const FILTER_CATEGORIES: Array<{ id: FilterDefinition['category']; label:
   { id: 'kodak', label: 'Kodak Film' },
   { id: 'fuji', label: 'Fuji Film' },
   { id: 'cinema', label: 'Cinema & Colorist' },
+  { id: 'instant', label: 'Instant Film' },
   { id: 'social', label: 'Social' },
   { id: 'classic', label: 'Classic' },
   { id: 'bw', label: 'Black & White' },

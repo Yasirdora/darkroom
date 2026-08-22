@@ -82,7 +82,7 @@ public struct FilmGrainSpec: Sendable, Equatable, Hashable, Codable {
 
 /// The category a look is filed under in the picker.
 public enum FilmCategory: String, Sendable, Codable, CaseIterable, Identifiable {
-    case classic, social, portrait, kodak, fuji, cinema, blackAndWhite
+    case classic, social, portrait, kodak, fuji, cinema, instant, blackAndWhite
 
     public var id: String { rawValue }
 
@@ -92,6 +92,7 @@ public enum FilmCategory: String, Sendable, Codable, CaseIterable, Identifiable 
         case .kodak: "Kodak Film"
         case .fuji: "Fuji Film"
         case .cinema: "Cinema & Colorist"
+        case .instant: "Instant Film"
         case .social: "Social"
         case .classic: "Classic"
         case .blackAndWhite: "Black & White"
@@ -100,7 +101,7 @@ public enum FilmCategory: String, Sendable, Codable, CaseIterable, Identifiable 
 
     /// Display order in the picker.
     public static let ordered: [FilmCategory] = [
-        .portrait, .kodak, .fuji, .cinema, .social, .classic, .blackAndWhite,
+        .portrait, .kodak, .fuji, .cinema, .instant, .social, .classic, .blackAndWhite,
     ]
 }
 

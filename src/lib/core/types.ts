@@ -28,7 +28,15 @@ export type SliderVariant =
   | 'sepia'
   | 'sharpen';
 
-export type FilterCategory = 'classic' | 'social' | 'portrait' | 'kodak' | 'fuji' | 'cinema' | 'bw';
+export type FilterCategory =
+  | 'classic'
+  | 'social'
+  | 'portrait'
+  | 'kodak'
+  | 'fuji'
+  | 'cinema'
+  | 'instant'
+  | 'bw';
 
 /** How uploaded pixel values are interpreted before grading. */
 export type InputProfileId =
@@ -79,6 +87,8 @@ export type FilterId =
   | 'ultramax400'
   | 'vision3_250d'
   | 'exr200t_5293'
+  | 'kodachrome64'
+  | 'ektachrome100'
   // Fuji
   | 'pro400h'
   | 'superia400'
@@ -87,6 +97,7 @@ export type FilterId =
   | 'eterna'
   | 'classic_chrome'
   | 'acros100'
+  | 'natura1600'
   // Cinema
   | 'tealOrange'
   | 'bleachBypass'
@@ -96,11 +107,19 @@ export type FilterId =
   | 'sunsetGlow'
   | 'forestMist'
   | 'copperTone'
+  | 'cinestill800t'
+  | 'cinestill50d'
+  // Instant
+  | 'polaroid600'
+  | 'sx70'
   // B&W
   | 'trix400'
   | 'hp5Plus'
   | 'delta100'
   | 'noirHigh'
+  | 'tmax100'
+  | 'fp4plus'
+  | 'delta3200'
   // Magic Portrait
   | 'magicNatural'
   | 'magicGlow'

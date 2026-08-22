@@ -132,7 +132,45 @@ public final class Editor {
         }
     }
 
-    public init() {}
+    public init() {
+        restoreSession()
+    }
+
+    /// Reopens the last photograph with its grade, if there is one to reopen.
+    ///
+    /// Restored *through* `open`, not around it: the file's own declared input
+    /// profile and metadata load exactly as they did the first time, and the
+    /// saved grade then replaces the fresh one wholesale — including its input
+    /// profile, which is the user's correction of the file's claim and wins.
+    private func restoreSession() {
+        guard let session = SessionStore.load() else { return }
+        open(URL(fileURLWithPath: session.sourcePath))
+        guard sourceImage != nil else { return }
+
+        state = session.state
+        // Restoring is not an edit: nothing to undo back into, and nothing new
+        // to save — the store already holds exactly this.
+        undoStack.removeAll()
+        redoStack.removeAll()
+        refreshScopes()
+    }
+
+    // MARK: - Session persistence
+
+    private var sessionSaveTask: Task<Void, Never>?
+
+    /// Saves the session shortly after the last change.
+    ///
+    /// Debounced for the same reason the scopes are: a slider drag is a hundred
+    /// changes a second and only the last one is worth writing to disk.
+    private func scheduleSessionSave() {
+        sessionSaveTask?.cancel()
+        sessionSaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled, let self else { return }
+            SessionStore.save(sourceURL: self.sourceURL, state: self.state)
+        }
+    }
 
     // MARK: - Opening
 
@@ -172,6 +210,7 @@ public final class Editor {
             interaction = nil
 
             refreshScopes()
+            scheduleSessionSave()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -196,6 +235,7 @@ public final class Editor {
         redoStack.removeAll()
         state = next
         scheduleScopeRefresh()
+        scheduleSessionSave()
     }
 
     /// Applies a change without recording it, for continuous drags.
@@ -241,6 +281,7 @@ public final class Editor {
 
         undoStack.append(Step(state: interaction.state, label: interaction.label))
         redoStack.removeAll()
+        scheduleSessionSave()
     }
 
     public func resetGrade() {
@@ -371,6 +412,7 @@ public final class Editor {
         redoStack.append(Step(state: state, label: step.label))
         state = step.state
         refreshScopes()
+        scheduleSessionSave()
     }
 
     public func redo() {
@@ -378,6 +420,41 @@ public final class Editor {
         undoStack.append(Step(state: state, label: step.label))
         state = step.state
         refreshScopes()
+        scheduleSessionSave()
+    }
+
+    // MARK: - Clipboard
+
+    /// Copies the whole grade to the pasteboard as JSON.
+    ///
+    /// Full fidelity, not the share-link subset: crop, rotation and an imported
+    /// LUT all travel, because paste is *this* grade moving between images,
+    /// not a preset being published. The JSON is plain text on the general
+    /// pasteboard — pasting into a text editor shows a readable grade, which
+    /// costs nothing and has answered debugging questions before.
+    public func copyGrade() {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(state),
+              let string = String(data: data, encoding: .utf8)
+        else { return }
+
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
+    }
+
+    /// Whether the pasteboard currently holds something that decodes as a grade.
+    public var canPasteGrade: Bool {
+        guard let string = NSPasteboard.general.string(forType: .string) else { return false }
+        return (try? JSONDecoder().decode(EditState.self, from: Data(string.utf8))) != nil
+    }
+
+    /// Replaces the current grade with the pasteboard's, as one undoable step.
+    public func pasteGrade() {
+        guard let string = NSPasteboard.general.string(forType: .string),
+              let pasted = try? JSONDecoder().decode(EditState.self, from: Data(string.utf8))
+        else { return }
+        update({ $0 = pasted }, label: "Paste Grade")
     }
 
     // MARK: - Scopes

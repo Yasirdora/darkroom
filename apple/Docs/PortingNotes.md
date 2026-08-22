@@ -1462,3 +1462,84 @@ highlights by 11. It reads plainly.
 Worth recording as a method note: a look was very nearly re-tuned a second time
 on the evidence of an image that could not show what it does. Judge a shadow
 tool on a picture with shadows.
+
+## The toe never joined the curve
+
+A review of all 59 looks for technical correctness found that **56 of them were
+non-monotonic on the neutral axis** — a step where more light in produced less
+light out, up to 15 code values, followed by a recovery.
+
+The cause is a two-line arithmetic error in `applyCurve` that had been there
+since the model was written. The toe maps `[0, toeLen]` onto
+`[toeLift, toeLen]`: it lifts black and arrives at the boundary carrying the
+input's own value. The gamma segment then restarted from `toeLift`:
+
+```
+toe branch ends at    toeLen    (25.5 codes on Portra 400)
+gamma branch starts   toeLift   (12.8 codes)
+discontinuity                   12.7 codes = (toeLen − toeLift) × 255
+```
+
+Three things made it worse than a step in a ramp. It sat in the deep shadows,
+where a cliff of that size is most visible. It fired at a different input per
+channel — the boundary is tested after `gain`, which differs — so it carried a
+colour fringe as well as a luminance step. And it inverted the tone scale
+locally, which no photographic process does.
+
+The fix is to continue the gamma segment from `toeLen`, where the toe left off.
+Every fold is gone; nothing is non-monotonic.
+
+### Diagnosis notes worth keeping
+
+The first probe of the model showed a *constant* output across the whole range
+and contradicted the LUT. That was the probe, not the model: `buildLut` passes
+0–255 and `applyCurve` divides by 255 itself, so passing normalised values
+divided twice and left everything inside the toe. **When a probe disagrees with
+the artefact it is probing, suspect the probe.**
+
+The detector also flagged a second class of fault at input 210 on many looks.
+That one is real but is *not* the same kind of thing, and it has been left
+alone deliberately — see below.
+
+## The shoulder lifts where it should compress
+
+Still outstanding, reported rather than patched.
+
+`applyCurve`'s shoulder is applied to the already-mapped value, so below it the
+curve passes through unchanged at slope ≈ 1.07. The shoulder's own initial slope
+is `k = 1.6 + shoulderStr × 2.8`, which is 2.72 on Portra 400. Highlights are
+therefore *expanded* by about 2.7× at the boundary before compressing above it,
+and the step size in the ramp visibly doubles at input 210.
+
+It is not a typo like the toe, and there is no small fix. The shoulder is
+normalised to reach 1.0 at input 1.0, and **a concave function through the
+origin with slope 1 cannot reach 1.0** — so as long as white must land on white,
+the discontinuity is structural. Making it continuous means letting the shoulder
+compress properly, ending below 1.0, and rescaling the curve afterwards, which
+moves every stock's highlight rendering and would need the contrast and tint
+work redone on top.
+
+That is a considered redesign, not a patch, and it is the wrong thing to do in
+the same pass as a two-line bug fix.
+
+## Fifty-nine looks, about twenty-one of them distinct
+
+Measured as the mean difference between every pair of baked LUTs:
+
+| | |
+|---|---|
+| median distance between any two looks | 12.6 codes |
+| **median distance to the nearest other look** | **2.9 codes** |
+| looks with another within 4 codes | 40 of 59 |
+| largest set at least 6 codes apart | **21** |
+
+A difference of 2–3 code values is at or below what anyone can see. Half the
+catalogue has a twin that close: `clarendon`/`lofi` at 1.4, `aden`/`gingham` at
+1.6, `magicGolden`/`magicSunset` at 2.0, `hp5Plus`/`magicBwPortrait` at 2.4.
+
+**A caution on the method.** Single-linkage clustering reported "13 families",
+one of them containing 41 looks. That number is wrong and was nearly published:
+single linkage chains — A near B and B near C puts A and C together however far
+apart they are. The defensible figure is the largest set whose members are all
+mutually distinct, which is 21 at a 6-code threshold. Nearest-neighbour distance
+is the honest per-look measure; cluster counts from chaining are not.

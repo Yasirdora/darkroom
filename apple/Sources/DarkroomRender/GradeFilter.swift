@@ -221,6 +221,79 @@ public enum GradeFilter {
         return blended?.cropped(to: extent) ?? image
     }
 
+    /// Grain carried by a film stock, applied as part of the look.
+    ///
+    /// Without this the picker's grain badge is a promise the render does not
+    /// keep: the CPU engine applies the stock's grain with the look, and the
+    /// cube cannot carry it — grain is spatial, and a colour cube is not.
+    ///
+    /// Differs from the adjustment grain in two ways. The strength is the
+    /// stock's own, scaled by the look's intensity exactly as the CPU engine
+    /// scales it. And the noise is shaped by the stock — clumped to its grain
+    /// size and weighted warm or cool per channel — where the adjustment
+    /// grain is deliberately neutral.
+    static func applyStockGrain(_ spec: FilmGrainSpec, intensity: Double, to image: CIImage) -> CIImage {
+        let extent = image.extent
+        guard !extent.isInfinite, !extent.isEmpty else { return image }
+
+        // The CPU engine's scaling: the stock's amount, taken down with the
+        // look's intensity. The quarter turns an 8-bit add into an overlay
+        // strength of the same visual weight.
+        let amount = (spec.amount / 100) * (intensity / 100).clamped(to: 0...1)
+        let strength = (amount * 0.25).clamped(to: 0...1)
+        guard strength > 0 else { return image }
+
+        guard var noise = CIFilter(name: "CIRandomGenerator")?.outputImage else { return image }
+
+        // Grain size. The generator produces single-pixel speckle and emulsion
+        // grain is clumped: scaling the field up makes the clumps, and a small
+        // blur takes the hard pixel edges off without dissolving the structure.
+        if spec.size > 0.05 {
+            let scale = 1 / (1 + spec.size * 2)
+            noise = noise.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            noise = CIFilter(name: "CIGaussianBlur", parameters: [
+                kCIInputImageKey: noise,
+                kCIInputRadiusKey: 0.5,
+            ])?.outputImage ?? noise
+        }
+
+        // Per-channel strength, mirroring the CPU engine's weights: red carries
+        // the warmth, blue carries the cool, green stays quiet. Mid-grey is the
+        // overlay blend's identity, so each channel is biased back toward 0.5
+        // by exactly the amount it is scaled down.
+        let luma = (r: 0.2126, g: 0.7152, b: 0.0722)
+        let rS = strength * spec.warmth
+        let gS = strength * 0.35
+        let bS = strength * (1 - spec.warmth) * 0.5
+
+        func row(_ s: Double) -> CIVector {
+            CIVector(x: luma.r * s, y: luma.g * s, z: luma.b * s, w: 0)
+        }
+
+        let scaled = CIFilter(name: "CIColorMatrix", parameters: [
+            kCIInputImageKey: noise.cropped(to: extent),
+            "inputRVector": row(rS),
+            "inputGVector": row(gS),
+            "inputBVector": row(bS),
+            "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
+            "inputBiasVector": CIVector(
+                x: 0.5 * (1 - rS), y: 0.5 * (1 - gS), z: 0.5 * (1 - bS), w: 1
+            ),
+        ])?.outputImage
+
+        guard let scaled else { return image }
+
+        let blended = CIFilter(name: "CIOverlayBlendMode", parameters: [
+            kCIInputImageKey: scaled,
+            kCIInputBackgroundImageKey: image,
+        ])?.outputImage
+
+        // Cropped for the same reason the adjustment grain is: the noise
+        // generator is infinite, and an infinite extent reaching the canvas
+        // blanks the view.
+        return blended?.cropped(to: extent) ?? image
+    }
+
     // MARK: - Helpers
 
     static func overlay(_ top: CIImage, on bottom: CIImage) -> CIImage {

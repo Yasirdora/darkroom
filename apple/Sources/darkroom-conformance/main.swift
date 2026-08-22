@@ -37,6 +37,7 @@ do {
             + CurveGestureChecks.all()
             + CurveHandleChecks.all()
             + WhiteBalanceChecks.all()
+            + SessionChecks.all()
     )
     print(report.formatted(verbose: verbose))
     exit(report.passed ? 0 : 1)

@@ -29,6 +29,7 @@ const CATEGORY: Record<string, string> = {
   kodak: 'kodak',
   fuji: 'fuji',
   cinema: 'cinema',
+  instant: 'instant',
   bw: 'blackAndWhite',
 };
 

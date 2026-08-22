@@ -30,6 +30,8 @@ extension FilmStock {
         .ultramax400,
         .vision3250d,
         .exr200t5293,
+        .kodachrome64,
+        .ektachrome100,
         .pro400h,
         .superia400,
         .velvia50,
@@ -37,6 +39,7 @@ extension FilmStock {
         .eterna,
         .classicChrome,
         .acros100,
+        .natura1600,
         .tealOrange,
         .bleachBypass,
         .goldenHour,
@@ -45,6 +48,10 @@ extension FilmStock {
         .sunsetGlow,
         .forestMist,
         .copperTone,
+        .cinestill800t,
+        .cinestill50d,
+        .polaroid600,
+        .sx70,
         .juno,
         .lark,
         .gingham,
@@ -70,6 +77,9 @@ extension FilmStock {
         .hp5Plus,
         .delta100,
         .noirHigh,
+        .tmax100,
+        .fp4plus,
+        .delta3200,
     ]
 
     /// Looks up a stock by its stable identifier.

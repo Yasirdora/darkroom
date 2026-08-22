@@ -2,7 +2,7 @@
 //
 // Run `npm run generate:stocks` from the repository root to regenerate.
 //
-// 8 kodak stock profiles.
+// 10 kodak stock profiles.
 
 import Foundation
 
@@ -236,6 +236,64 @@ extension FilmStock {
         halationWarmth: 0.88,
         print: PrintProfile(contrast: 2.7, pivot: 0.45),
         grain: FilmGrainSpec(amount: 12.0, warmth: 0.48, size: 0.38),
+        preservesSkinTones: false,
+        isStylized: false
+    )
+
+    public static let kodachrome64 = FilmStock(
+        id: "kodachrome64",
+        name: "Kodachrome 64",
+        category: .kodak,
+        summary: "Iconic slide · rich warm reds · deep blacks",
+        redCurve: ChannelCurve(gamma: 0.8, toe: 0.06, toeLift: 0.015, shoulder: 0.89, shoulderStrength: 0.2, gain: 1.03),
+        greenCurve: ChannelCurve(gamma: 0.82, toe: 0.06, toeLift: 0.015, shoulder: 0.9, shoulderStrength: 0.18, gain: 1.0),
+        blueCurve: ChannelCurve(gamma: 0.84, toe: 0.07, toeLift: 0.018, shoulder: 0.89, shoulderStrength: 0.2, gain: 0.98),
+        dyeMatrix: ColorMatrix3x3(
+            1.05, 0.01, -0.02,
+            0.0, 1.0, -0.01,
+            -0.03, 0.01, 0.99
+        ),
+        scanner: .neutral,
+        shadowHue: 220.0,
+        shadowTint: 0.05,
+        highlightHue: 42.0,
+        highlightTint: 0.07,
+        latitude: 0.5,
+        saturation: 1.12,
+        vibrance: 0.08,
+        halation: 0.02,
+        halationWarmth: 0.7,
+        print: PrintProfile(contrast: 4.2, pivot: 0.44),
+        grain: FilmGrainSpec(amount: 5.0, warmth: 0.5, size: 0.25),
+        preservesSkinTones: false,
+        isStylized: false
+    )
+
+    public static let ektachrome100 = FilmStock(
+        id: "ektachrome100",
+        name: "Ektachrome E100",
+        category: .kodak,
+        summary: "Modern slide · neutral clean colour",
+        redCurve: ChannelCurve(gamma: 0.85, toe: 0.06, toeLift: 0.02, shoulder: 0.88, shoulderStrength: 0.24, gain: 1.0),
+        greenCurve: ChannelCurve(gamma: 0.86, toe: 0.06, toeLift: 0.02, shoulder: 0.89, shoulderStrength: 0.22, gain: 1.0),
+        blueCurve: ChannelCurve(gamma: 0.85, toe: 0.07, toeLift: 0.022, shoulder: 0.88, shoulderStrength: 0.24, gain: 1.01),
+        dyeMatrix: ColorMatrix3x3(
+            1.01, 0.0, -0.01,
+            0.0, 1.01, 0.0,
+            -0.01, 0.01, 1.02
+        ),
+        scanner: .neutral,
+        shadowHue: 210.0,
+        shadowTint: 0.05,
+        highlightHue: 55.0,
+        highlightTint: 0.04,
+        latitude: 0.55,
+        saturation: 1.06,
+        vibrance: 0.06,
+        halation: 0.02,
+        halationWarmth: 0.6,
+        print: PrintProfile(contrast: 3.8, pivot: 0.45),
+        grain: FilmGrainSpec(amount: 4.0, warmth: 0.4, size: 0.2),
         preservesSkinTones: false,
         isStylized: false
     )

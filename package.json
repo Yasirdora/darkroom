@@ -12,7 +12,8 @@
     "reference": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/dump.ts",
     "generate:stocks": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/generate-stocks.ts",
     "verify:grade-share": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/verify-grade-share.ts",
-    "measure:looks": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/measure-looks.ts"
+    "measure:looks": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/measure-looks.ts",
+    "probe:ramp": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/probe-ramp.ts"
   },
   "engines": {
     "node": ">=20"

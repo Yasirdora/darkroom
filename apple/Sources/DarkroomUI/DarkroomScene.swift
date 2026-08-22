@@ -33,6 +33,11 @@ public struct DarkroomScene: Scene {
         }
 
         CommandGroup(replacing: .saveItem) {
+            Button("Share…") {
+                EditorWindow(editor: editor).sharePhotograph()
+            }
+            .disabled(!editor.hasImage)
+
             Button("Export…") {
                 EditorWindow(editor: editor).exportPhotograph()
             }
@@ -57,6 +62,28 @@ public struct DarkroomScene: Scene {
             Button("Reset Grade") { editor.resetGrade() }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
                 .disabled(editor.state.isNeutral)
+
+            Divider()
+
+            // The Lightroom reflex: the fastest way to sanity-check a grade is
+            // a key you can tap, not a button you have to hold.
+            Button(editor.isComparing ? "Hide Original" : "Show Original") {
+                editor.isComparing.toggle()
+            }
+            .keyboardShortcut("\\")
+            .disabled(!editor.hasImage)
+
+            Divider()
+
+            // Whole-grade clipboard, so a look built on one photograph moves
+            // to the next without being rebuilt slider by slider.
+            Button("Copy Grade") { editor.copyGrade() }
+                .keyboardShortcut("c", modifiers: [.command, .shift])
+                .disabled(!editor.hasImage || editor.state.isNeutral)
+
+            Button("Paste Grade") { editor.pasteGrade() }
+                .keyboardShortcut("v", modifiers: [.command, .shift])
+                .disabled(!editor.hasImage || !editor.canPasteGrade)
 
             Divider()
 

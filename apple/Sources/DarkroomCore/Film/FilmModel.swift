@@ -132,7 +132,15 @@ public enum FilmModel {
             x = toeLift + t * t * (toeLength - toeLift)
         } else {
             let normalized = (x - toeLength) / max(1 - toeLength, 0.001)
-            x = toeLift + pow(normalized, 1 / max(gamma, 0.55)) * (1 - toeLift)
+            // Continues from `toeLength`, where the toe left off — not from
+            // `toeLift`. The toe maps [0, toeLength] onto [toeLift, toeLength]:
+            // it lifts black and arrives at the boundary carrying the input's
+            // own value. Restarting the gamma segment at `toeLift` dropped the
+            // output by exactly (toeLength − toeLift) there — around 13 code
+            // values on a typical stock — and did it independently per channel,
+            // so the cliff came with a colour fringe. It sat in the deep
+            // shadows, which is where a step that size shows most.
+            x = toeLength + pow(normalized, 1 / max(gamma, 0.55)) * (1 - toeLength)
         }
 
         if x > shoulder {
