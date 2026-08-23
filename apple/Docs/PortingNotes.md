@@ -1648,3 +1648,37 @@ fragile hit-testing harness, both the frame and the content shape live inside
 `CanvasControlButton`, so a call site cannot supply one without the other. The
 same answer as the pane's clip: where a rule cannot be checked, make it
 impossible to break instead.
+
+## Nothing was watching for things disappearing
+
+Hiding the title bar removed Open, Compare and Share from the window, and no
+check noticed. That is not an oversight in any one of them — it is a gap in the
+whole set. Conformance asks whether the engine computes the right numbers.
+`--layout` asks whether controls hold their size. The clipping and occlusion
+checks ask whether things stay inside their bounds. **Every one of them asks
+whether what is drawn is correct. None asks whether something that used to be
+drawn still is.**
+
+A removal is invisible to all of them, which is why it took a user noticing.
+
+### The check that could not work, and the one that could
+
+The obvious approach — walk the accessibility tree looking for the controls'
+labels — found nothing at all. That is not a bug to fix: macOS builds that tree
+lazily, when an assistive client attaches, so in a command-line tool it is
+simply empty. It was deleted rather than shipped. A check that always fails
+teaches people to ignore the suite.
+
+What a render *can* see is variance. A region holding a control has a capsule,
+a border and glyphs in it, so its luminance varies; bare surround does not vary
+at all. `PresenceCheck` measures the standard deviation of luminance in the two
+regions the canvas controls occupy, and a spread under 3 code values means
+nothing is there.
+
+That needs no threshold tuned to a particular material, survives the chrome
+being restyled, and states the thing that actually matters: **something is
+there**.
+
+Mutation-tested against the real regression — removing both clusters, removing
+only the trailing pair, and collapsing all three onto the left, which is the
+mistake that was actually made. All three caught.

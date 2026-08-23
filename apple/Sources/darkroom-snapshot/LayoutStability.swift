@@ -179,10 +179,11 @@ enum LayoutStability {
 
         let clipping = ClippingCheck.run()
         let occlusion = OcclusionCheck.run()
+        let presence = PresenceCheck.run()
 
-        guard failures.isEmpty, clipping.isEmpty, occlusion.isEmpty else {
+        guard failures.isEmpty, clipping.isEmpty, occlusion.isEmpty, presence.isEmpty else {
             print("\nLayout stability — FAIL")
-            for problem in clipping + occlusion { print("  ✗ \(problem)") }
+            for problem in clipping + occlusion + presence { print("  ✗ \(problem)") }
             for failure in failures {
                 print("  ✗ \(failure.control)")
                 print("      \(failure.states.0): \(describe(failure.sizes.0))")

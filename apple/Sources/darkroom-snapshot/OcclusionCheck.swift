@@ -116,28 +116,7 @@ enum OcclusionCheck {
     /// rather than resolved through a colour space on the way in — which
     /// matters, because the check downstream identifies the photograph by that
     /// colour.
-    private static let markerRGB: (UInt8, UInt8, UInt8) = (0, 255, 51)
-
-    private static let markerFile: URL? = {
-        let width = 2400, height = 1400
-        guard let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height,
-            bitsPerSample: 8, samplesPerPixel: 3, hasAlpha: false, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: width * 3, bitsPerPixel: 24
-        ), let plane = rep.bitmapData else { return nil }
-
-        for index in stride(from: 0, to: width * height * 3, by: 3) {
-            plane[index] = markerRGB.0
-            plane[index + 1] = markerRGB.1
-            plane[index + 2] = markerRGB.2
-        }
-
-        guard let data = rep.representation(using: .png, properties: [:]) else { return nil }
-        let url = FileManager.default.temporaryDirectory
-            .appending(path: "darkroom-occlusion-probe.png")
-        do { try data.write(to: url) } catch { return nil }
-        return url
-    }()
+    private static var markerFile: URL? { ProbeImage.url }
 
     struct Bitmap {
         let bytes: [UInt8]; let width: Int; let height: Int
