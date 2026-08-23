@@ -22,14 +22,13 @@ public enum LookFilter {
         private var totalBytes = 0
         private let lock = NSLock()
 
-        /// Bounded by bytes rather than entries, because entries differ by
-        /// 64×: a 64³ canvas cube converts to 4 MB of floats, a 16³ thumbnail
-        /// cube to 64 KB. 128 MB holds thirty full cubes — more than any
-        /// session touches at once — or thousands of thumbnail ones.
+        /// Bounded by bytes rather than entries, because entries differ in
+        /// size: a 64³ baked stock converts to 4 MB of floats, and an imported
+        /// LUT can be any size at all. 128 MB holds thirty full cubes — more
+        /// than any session touches at once.
         ///
         /// Least-recently-used eviction, per entry. The previous scheme
-        /// flushed *everything* at a count limit, which the thumbnail pass's
-        /// seventy small cubes was guaranteed to trip — one flush and the
+        /// flushed *everything* at a count limit — one busy session and the
         /// active look's own conversion was gone, rebuilt on the next frame
         /// of a slider drag.
         private let byteLimit = 128 * 1024 * 1024
@@ -249,10 +248,10 @@ public enum LookFilter {
         bakedCubes.cube(for: stock)
     }
 
-    /// A stock's baked cube, shared with the render path's cache.
+    /// A stock's baked cube, shared between every caller that renders it.
     ///
-    /// The picker's thumbnails render through the same cubes the canvas does —
-    /// baking twice would be the slowest possible way to show the same colours.
+    /// Baking is the expensive step and its result never changes, so it
+    /// happens once per stock per session, whoever asks first.
     public static func cube(for stock: FilmStock) -> ColorCube {
         bakedCube(for: stock)
     }

@@ -1609,9 +1609,16 @@ hides the toolbar along with the bar. They were reachable only from menus, and
 nothing in the suite noticed, because every check the project has asks whether
 what is drawn is correct — never whether something that used to be there still is.
 
-They are back as a floating cluster on the line the window buttons occupy. That
-line is what a title bar was *for*, and it is still the right home for actions
-that apply to the document as a whole rather than to the grade.
+They are back on the line the window buttons occupy — that line is what a title
+bar was *for*, and it is still the right home for actions that apply to the
+document as a whole rather than to the grade.
+
+**In two clusters, not one.** The first attempt put all three on the left, which
+threw away a split that was deliberate: the toolbar had used `.navigation`
+placement for Open and a trailing group for Compare and Share. The document on
+the left, what you do with it on the right — the same reading order as the
+window itself. Restoring the controls without restoring their arrangement fixed
+half the regression and introduced another.
 
 `CanvasChrome` now holds the insets, read by both the window that applies them
 and the occlusion check that asserts against them. Two copies of those numbers

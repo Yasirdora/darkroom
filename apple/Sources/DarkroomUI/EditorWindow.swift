@@ -63,7 +63,8 @@ public struct EditorWindow: View {
                     return true
                 } isTargeted: { isTargetedForDrop = $0 }
 
-            documentControls
+            leadingControls
+            trailingControls
 
             InspectorView(editor: editor)
                 .padding(.vertical, InspectorGeometry.panelPadding)
@@ -133,21 +134,29 @@ public struct EditorWindow: View {
         return "\(head)…\(tail)"
     }
 
-    /// Open, compare and share, floating beside the window buttons.
+    /// Opening a photograph — leading, beside the window buttons.
     ///
-    /// These lived in the toolbar until the title bar was hidden, which took
-    /// them off the screen entirely and left them reachable only from menus.
-    /// They belong on the same line the window buttons occupy — that line is
-    /// what a title bar was for, and it is still the right place for the
-    /// actions that apply to the document as a whole.
-    private var documentControls: some View {
+    /// The split across the two sides is deliberate and predates this layout:
+    /// the toolbar placed Open in the navigation position and put Compare and
+    /// Share in a trailing group. Getting the *document* on the left and what
+    /// you do *with it* on the right is the same reading order as the window
+    /// itself, and collapsing them into one cluster threw that away.
+    private var leadingControls: some View {
         CanvasControlCluster {
             CanvasControlButton(
                 symbol: "folder",
                 label: "Open",
                 help: "Open a photograph"
             ) { openPhotograph() }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.leading, CanvasChrome.windowButtonWidth)
+        .padding(.top, 10)
+    }
 
+    /// Comparing and sharing — trailing, just clear of the inspector.
+    private var trailingControls: some View {
+        CanvasControlCluster {
             CanvasControlButton(
                 symbol: "circle.righthalf.filled",
                 label: "Compare",
@@ -173,8 +182,8 @@ public struct EditorWindow: View {
                 isEnabled: editor.hasImage
             ) { sharePhotograph() }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.leading, CanvasChrome.windowButtonWidth)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .padding(.trailing, InspectorGeometry.panelWidth + InspectorGeometry.panelPadding * 2)
         .padding(.top, 10)
     }
 
