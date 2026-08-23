@@ -17,29 +17,48 @@ public enum LookFilter {
     private static let cache = CubeCache()
 
     private final class CubeCache: @unchecked Sendable {
-        private var storage: [String: Data] = [:]
+        private var storage: [String: (data: Data, bytes: Int)] = [:]
+        private var order: [String] = []
+        private var totalBytes = 0
         private let lock = NSLock()
 
-        /// Bounded, because an imported-LUT-heavy session could otherwise grow
-        /// without limit. Sixty-four 64³ cubes is about 16 MB of float data —
-        /// more than any real session needs resident at once.
-        private let limit = 64
+        /// Bounded by bytes rather than entries, because entries differ by
+        /// 64×: a 64³ canvas cube converts to 4 MB of floats, a 16³ thumbnail
+        /// cube to 64 KB. 128 MB holds thirty full cubes — more than any
+        /// session touches at once — or thousands of thumbnail ones.
+        ///
+        /// Least-recently-used eviction, per entry. The previous scheme
+        /// flushed *everything* at a count limit, which the thumbnail pass's
+        /// seventy small cubes was guaranteed to trip — one flush and the
+        /// active look's own conversion was gone, rebuilt on the next frame
+        /// of a slider drag.
+        private let byteLimit = 128 * 1024 * 1024
 
         func data(for cube: ColorCube, build: (ColorCube) -> Data) -> Data {
             let key = cube.contentHash
 
             lock.lock()
-            if let cached = storage[key] {
+            if let hit = storage[key] {
+                order.removeAll { $0 == key }
+                order.append(key)
                 lock.unlock()
-                return cached
+                return hit.data
             }
             lock.unlock()
 
             let built = build(cube)
 
             lock.lock()
-            if storage.count >= limit { storage.removeAll() }
-            storage[key] = built
+            storage[key] = (built, built.count)
+            totalBytes += built.count
+            order.removeAll { $0 == key }
+            order.append(key)
+            while totalBytes > byteLimit, let eldest = order.first {
+                order.removeFirst()
+                if let evicted = storage.removeValue(forKey: eldest) {
+                    totalBytes -= evicted.bytes
+                }
+            }
             lock.unlock()
 
             return built

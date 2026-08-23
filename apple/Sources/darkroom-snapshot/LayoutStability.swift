@@ -155,10 +155,11 @@ enum LayoutStability {
         }
 
         let clipping = ClippingCheck.run()
+        let occlusion = OcclusionCheck.run()
 
-        guard failures.isEmpty, clipping.isEmpty else {
+        guard failures.isEmpty, clipping.isEmpty, occlusion.isEmpty else {
             print("\nLayout stability — FAIL")
-            for problem in clipping { print("  ✗ \(problem)") }
+            for problem in clipping + occlusion { print("  ✗ \(problem)") }
             for failure in failures {
                 print("  ✗ \(failure.control)")
                 print("      \(failure.states.0): \(describe(failure.sizes.0))")
@@ -166,7 +167,7 @@ enum LayoutStability {
             }
             return false
         }
-        print("\nLayout stability — every control holds its size at every value, in both materials.")
+        print("\nLayout stability — controls hold their size, panes clip, the photograph keeps clear of the chrome.")
         return true
     }
 

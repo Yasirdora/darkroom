@@ -1,5 +1,6 @@
 public import SwiftUI
 import DarkroomCore
+import DarkroomRender
 
 /// Chooses a film stock.
 ///
@@ -10,11 +11,17 @@ public struct LookPicker: View {
 
     @Bindable public var editor: Editor
 
-    /// Per-stock previews, filled in after the picker appears.
-    @State private var thumbnails: [String: CGImage] = [:]
+    /// The pinned search field's query, owned by the inspector so the field
+    /// can stay above the scroll view while the filtering happens here.
+    let searchText: String
 
-    public init(editor: Editor) {
+    /// The name being typed for a new user look, while the alert is up.
+    @State private var pendingLookName = ""
+    @State private var isNamingLook = false
+
+    public init(editor: Editor, searchText: String = "") {
         self.editor = editor
+        self.searchText = searchText
     }
 
     private var selectedID: String? {
@@ -22,65 +29,184 @@ public struct LookPicker: View {
         return nil
     }
 
+    /// The query, normalised once for every comparison below.
+    private var query: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isSearching: Bool { !query.isEmpty }
+
+    /// A stock matches on its name, its character summary, or its category —
+    /// "warm" should find Sunset Portrait as surely as "Portra" finds Portra,
+    /// and "kodak" should gather every stock Kodak makes.
+    private func matchesQuery(_ stock: FilmStock) -> Bool {
+        stock.name.localizedCaseInsensitiveContains(query)
+            || stock.summary.localizedCaseInsensitiveContains(query)
+            || stock.category.title.localizedCaseInsensitiveContains(query)
+    }
+
     public var body: some View {
         GlassPaneStack {
-            if !editor.state.look.isNone {
-                InspectorCard(
-                    title: "Applied Look",
-                    id: "looks.applied",
-                    editor: editor,
-                    reset: { editor.update({ $0.look = .none }, label: "Remove Look") },
-                    isModified: true
-                ) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        intensity
-                        noneButton
-                    }
+            if isSearching {
+                searchResults
+            } else {
+                browsedContent
+            }
+        }
+        .padding(.horizontal, InspectorGeometry.panelInset)
+        .alert("Name this look", isPresented: $isNamingLook) {
+            TextField("Look name", text: $pendingLookName)
+            Button("Save") { editor.saveAsUserLook(name: pendingLookName) }
+                .disabled(pendingLookName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The grade — tone, colour, curves, look and qualifier — is saved. Crop and input decode stay with the photograph.")
+        }
+    }
+
+    /// The library at rest: the applied look's controls, the photographer's
+    /// own grades, then every stock grouped by category.
+    @ViewBuilder
+    private var browsedContent: some View {
+        if !editor.state.look.isNone {
+            InspectorCard(
+                title: "Applied Look",
+                id: "looks.applied",
+                editor: editor,
+                reset: { editor.update({ $0.look = .none }, label: "Remove Look") },
+                isModified: true
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    intensity
+                    noneButton
                 }
             }
+        }
 
-            ForEach(FilmCategory.ordered) { category in
-                let stocks = FilmStock.allStocks.filter { $0.category == category }
-                if !stocks.isEmpty {
-                    InspectorCard(
-                        title: category.title,
-                        id: "looks.\(category.id)",
-                        editor: editor
-                    ) {
-                        VStack(spacing: 1) {
-                            ForEach(stocks) { stock in
-                                LookRow(
-                                    stock: stock,
-                                    thumbnail: thumbnails[stock.id],
-                                    isSelected: selectedID == stock.id
-                                ) {
-                                    editor.update(
-                                        { $0.look = .filmStock(id: stock.id) },
-                                        label: stock.name
-                                    )
-                                }
+        // The photographer's own grades, ahead of the built-ins: a look
+        // someone made is worth more to them than any stock we shipped.
+        InspectorCard(
+            title: "My Looks",
+            id: "looks.user",
+            editor: editor
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(editor.userLooks) { look in
+                    UserLookRow(
+                        look: look,
+                        isActive: look.matches(editor.state),
+                        onApply: { editor.applyUserLook(look) },
+                        onDelete: { editor.deleteUserLook(look) }
+                    )
+                }
+
+                Button {
+                    pendingLookName = ""
+                    isNamingLook = true
+                } label: {
+                    Label("Save Current Grade as Look…", systemImage: "plus")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(
+                    editor.state.isNeutral
+                        ? Color.primary.opacity(0.25)
+                        : Color.accentColor
+                )
+                .disabled(editor.state.isNeutral)
+            }
+        }
+
+        ForEach(FilmCategory.ordered) { category in
+            let stocks = FilmStock.allStocks.filter { $0.category == category }
+            if !stocks.isEmpty {
+                InspectorCard(
+                    title: category.title,
+                    id: "looks.\(category.id)",
+                    editor: editor
+                ) {
+                    VStack(spacing: 1) {
+                        ForEach(stocks) { stock in
+                            LookRow(
+                                stock: stock,
+                                isSelected: selectedID == stock.id
+                            ) {
+                                editor.update(
+                                    { $0.look = .filmStock(id: stock.id) },
+                                    label: stock.name
+                                )
                             }
                         }
                     }
                 }
             }
         }
-        .padding(.horizontal, InspectorGeometry.panelInset)
-        // Rebuilt when the photograph changes: a preview of "Portra 400" that
-        // still shows the previous image is worse than none at all.
-        .task(id: editor.sourceURL) {
-            thumbnails = [:]
-            let base = LookThumbnails.baseImage(source: editor.sourceImage)
-            for stock in FilmStock.allStocks {
-                if Task.isCancelled { return }
-                if let image = LookThumbnails.render(stock, over: base, context: editor.renderContext) {
-                    thumbnails[stock.id] = image
+    }
+
+    /// The library, filtered: one flat result list rather than sections.
+    ///
+    /// Sections exist to be browsed; a query is not browsing. Someone who
+    /// typed "portra" wants the matching rows and nothing else, the same way
+    /// Find My collapses its list to what matches — and a search that finds
+    /// nothing must say so, or an empty pane reads as a library that failed
+    /// to load.
+    @ViewBuilder
+    private var searchResults: some View {
+        let matchingLooks = editor.userLooks.filter {
+            $0.name.localizedCaseInsensitiveContains(query)
+        }
+        let matchingStocks = FilmStock.allStocks.filter(matchesQuery)
+
+        if matchingLooks.isEmpty, matchingStocks.isEmpty {
+            VStack(spacing: 6) {
+                Text("No looks match “\(query)”")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text("Try a stock, a look, or a category")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 28)
+        } else {
+            if !matchingLooks.isEmpty {
+                InspectorCard(
+                    title: "My Looks",
+                    id: "looks.user.results",
+                    editor: editor
+                ) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(matchingLooks) { look in
+                            UserLookRow(
+                                look: look,
+                                isActive: look.matches(editor.state),
+                                onApply: { editor.applyUserLook(look) },
+                                onDelete: { editor.deleteUserLook(look) }
+                            )
+                        }
+                    }
                 }
-                // Every few stocks, let the display catch up — the picker
-                // filling in progressively reads better than a pause and a
-                // completed grid.
-                if FilmStock.allStocks.firstIndex(of: stock).map({ $0 % 6 == 5 }) == true {
-                    await Task.yield()
+            }
+
+            if !matchingStocks.isEmpty {
+                InspectorCard(
+                    title: "Film Stocks",
+                    id: "looks.stocks.results",
+                    editor: editor
+                ) {
+                    VStack(spacing: 1) {
+                        ForEach(matchingStocks) { stock in
+                            LookRow(
+                                stock: stock,
+                                isSelected: selectedID == stock.id
+                            ) {
+                                editor.update(
+                                    { $0.look = .filmStock(id: stock.id) },
+                                    label: stock.name
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -142,7 +268,6 @@ public struct LookPicker: View {
 /// One stock in the list.
 struct LookRow: View {
     let stock: FilmStock
-    let thumbnail: CGImage?
     let isSelected: Bool
     let action: () -> Void
 
@@ -151,20 +276,6 @@ struct LookRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 9) {
-                // The stock applied to the open photograph — the difference
-                // between choosing a look and choosing a name.
-                if let thumbnail {
-                    Image(decorative: thumbnail, scale: 1)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 44, height: 30)
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                } else {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.white.opacity(0.06))
-                        .frame(width: 44, height: 30)
-                }
-
                 VStack(alignment: .leading, spacing: 1) {
                     Text(stock.name)
                         .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
@@ -209,5 +320,98 @@ struct LookRow: View {
         .accessibilityLabel(stock.name)
         .accessibilityHint(stock.summary)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+
+/// One saved grade in the My Looks list.
+///
+/// Separate from ``LookRow`` rather than shared with it: a stock is chosen
+/// once and applied, a user look is also *managed* — it can be deleted, and
+/// "is this the active grade" is a field comparison, not a remembered id.
+struct UserLookRow: View {
+    let look: UserLook
+    let isActive: Bool
+    let onApply: () -> Void
+    let onDelete: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: onApply) {
+            HStack(spacing: 9) {
+                Text(look.name)
+                    .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                    .lineLimit(1)
+
+                Spacer(minLength: 4)
+
+                if isActive {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(
+                        isActive ? Color.accentColor.opacity(0.14)
+                            : isHovering ? Color.primary.opacity(0.06)
+                            : Color.clear
+                    )
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .contextMenu {
+            Button("Delete", role: .destructive, action: onDelete)
+        }
+        .accessibilityLabel(look.name)
+        .accessibilityAddTraits(isActive ? [.isSelected] : [])
+    }
+}
+
+/// The Looks tab's search field, pinned above the list by the inspector.
+///
+/// Custom rather than `.searchable`: on macOS the system modifier places its
+/// field in the window toolbar, away from the panel it filters, and a query
+/// box belongs with the list it narrows — the same place Find My keeps its
+/// search, directly over the results.
+struct LookSearchField: View {
+    @Binding var text: String
+    var isFocused: FocusState<Bool>.Binding
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+
+            TextField("Search looks", text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused(isFocused)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+        }
+        .accessibilityLabel("Search looks")
     }
 }

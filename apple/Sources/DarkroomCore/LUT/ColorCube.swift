@@ -31,6 +31,7 @@ public struct ColorCube: Sendable, Equatable, Hashable {
         guard size > 1, entries.count == size * size * size * 3 else { return nil }
         self.size = size
         self.entries = entries
+        self.contentHash = Self.digest(entries)
     }
 
     /// Bakes a colour transform into a cube by sampling it across the lattice.
@@ -86,6 +87,7 @@ public struct ColorCube: Sendable, Equatable, Hashable {
         }
 
         self.entries = entries
+        self.contentHash = Self.digest(entries)
     }
 
     /// The cube that leaves colour unchanged.
@@ -139,13 +141,21 @@ public struct ColorCube: Sendable, Equatable, Hashable {
 
     // MARK: - Identity
 
-    /// A stable content digest.
+    /// A stable content digest, computed once at creation.
     ///
     /// Two uses. The conformance suite proves a baked look is byte-identical to
     /// the TypeScript engine's — 786,432 bytes reduced to one comparison. And
     /// the render layer content-addresses its GPU textures by this, so a look
     /// that has not changed is never re-uploaded.
-    public var contentHash: String {
+    ///
+    /// Stored rather than computed: the render layer asks for it on every cube
+    /// cache lookup, and a SHA256 over 786 KB plus hex formatting is real work
+    /// that can never change — the entries are immutable, so the digest is too.
+    public let contentHash: String
+
+    /// The digest of an entry array. Identical entries hash identically, which
+    /// is what keeps the conformance suite's values stable across this change.
+    private static func digest(_ entries: [UInt8]) -> String {
         SHA256.hash(data: Data(entries))
             .map { String(format: "%02x", $0) }
             .joined()

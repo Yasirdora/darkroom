@@ -20,9 +20,36 @@ public struct EditorWindow: View {
         self.rendering = rendering
     }
 
+    /// What the floating chrome covers, so the canvas can keep clear of it.
+    ///
+    /// The trailing figure is the inspector's own width plus the gap it floats
+    /// in, twice over — once for the gap outside it and once for the gap the
+    /// photograph should keep on the other side, so the picture is not pressed
+    /// against the panel.
+    ///
+    /// The top figure is the window's title bar. The bar itself is hidden so
+    /// the canvas reaches the top of the window, but the close, minimise and
+    /// zoom buttons still float there, and a photograph must not run underneath
+    /// them.
+    private var canvasOcclusion: EdgeInsets {
+        EdgeInsets(
+            top: 28,
+            leading: 0,
+            bottom: 0,
+            trailing: InspectorGeometry.panelWidth + InspectorGeometry.panelPadding * 2
+        )
+    }
+
     public var body: some View {
-        HStack(spacing: 0) {
-            CanvasArea(editor: editor, rendering: rendering)
+        // One surface, with everything floating on it.
+        //
+        // Not an HStack any more. A split puts a hard edge in the window and
+        // makes the photograph stop somewhere short of the frame; overlaying
+        // lets the canvas run the full width and height while the inspector
+        // sits above it. What is *underneath* the inspector is only the neutral
+        // surround — see `CanvasArea.occlusion`.
+        ZStack(alignment: .trailing) {
+            CanvasArea(editor: editor, rendering: rendering, occlusion: canvasOcclusion)
                 .overlay {
                     if isTargetedForDrop {
                         RoundedRectangle(cornerRadius: 8)

@@ -77,6 +77,15 @@ public final class Editor {
     /// Which inspector section is showing.
     public var inspectorTab: InspectorTab = .adjust
 
+    /// A one-shot request to focus the Looks tab's search field.
+    ///
+    /// A menu command cannot reach a `@FocusState` living inside a view, so
+    /// the Find Look command stamps a fresh token here instead; the field's
+    /// host observes it and takes focus. A token rather than a flag, because
+    /// a `Bool` set to `true` twice is one event and two requests in a row
+    /// must both be delivered.
+    public var lookSearchRequest = UUID()
+
     /// Canvas magnification, or `nil` to fit the window.
     ///
     /// Fit is the default and stays the default: a photograph you cannot see
@@ -211,6 +220,7 @@ public final class Editor {
 
             refreshScopes()
             scheduleSessionSave()
+            recordRecentFile(url)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -455,6 +465,60 @@ public final class Editor {
               let pasted = try? JSONDecoder().decode(EditState.self, from: Data(string.utf8))
         else { return }
         update({ $0 = pasted }, label: "Paste Grade")
+    }
+
+    // MARK: - User looks
+
+    /// The photographer's saved grades, loaded once and kept in step with the
+    /// store by every mutation below.
+    public private(set) var userLooks: [UserLook] = UserLookStore.load()
+
+    /// Names the current grade and keeps it.
+    ///
+    /// A look is the treatment, not the frame: transform and input decode stay
+    /// with the photograph. See ``UserLook`` for what travels and why.
+    public func saveAsUserLook(name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !state.isNeutral else { return }
+        userLooks.append(UserLook(name: trimmed, from: state))
+        UserLookStore.save(userLooks)
+    }
+
+    /// Applies a saved look as one undoable step, labelled with its name.
+    public func applyUserLook(_ look: UserLook) {
+        update({ look.apply(to: &$0) }, label: look.name)
+    }
+
+    /// Removes a saved look. Not undoable — it edits the library, not the
+    /// grade, and the undo stack belongs to the photograph.
+    public func deleteUserLook(_ look: UserLook) {
+        userLooks.removeAll { $0.id == look.id }
+        UserLookStore.save(userLooks)
+    }
+
+    // MARK: - Recent files
+
+    /// Paths of recently opened photographs, most recent first.
+    public private(set) var recentFiles: [String] = UserDefaults.standard
+        .stringArray(forKey: Editor.recentFilesKey) ?? []
+
+    private static let recentFilesKey = "recentFiles"
+    private static let recentFilesLimit = 10
+
+    private func recordRecentFile(_ url: URL) {
+        var files = recentFiles
+        files.removeAll { $0 == url.path }
+        files.insert(url.path, at: 0)
+        if files.count > Self.recentFilesLimit {
+            files = Array(files.prefix(Self.recentFilesLimit))
+        }
+        recentFiles = files
+        UserDefaults.standard.set(files, forKey: Editor.recentFilesKey)
+    }
+
+    public func clearRecentFiles() {
+        recentFiles = []
+        UserDefaults.standard.removeObject(forKey: Editor.recentFilesKey)
     }
 
     // MARK: - Scopes

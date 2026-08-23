@@ -1543,3 +1543,59 @@ single linkage chains — A near B and B near C puts A and C together however fa
 apart they are. The defensible figure is the largest set whose members are all
 mutually distinct, which is 21 at a 6-code threshold. Nearest-neighbour distance
 is the honest per-look measure; cluster counts from chaining are not.
+
+## One surface, with the chrome floating on it
+
+The window was an `HStack`: canvas, then inspector, with a hard edge between
+them. It is now a `ZStack` — the canvas fills the whole window and the inspector
+floats above it — and the title bar is hidden so the canvas reaches the top.
+
+**Only the surround passes under the chrome.** The photograph is confined to
+what is left, for two separate reasons: a picture behind a panel is a picture
+you cannot judge, and a translucent panel with a photograph behind it takes its
+tint from the very thing being graded. The surround is a fixed neutral and has
+nothing to give away, so it can run the full width and height.
+
+The mechanism is smaller than the plan assumed. The canvas is already a Metal
+view layered over a SwiftUI surround, and it is already padded — so padding it
+by the occlusion confines the photograph directly. An earlier attempt threaded a
+separate content rectangle through `CanvasComposition`; it worked, and it was
+deleted, because it added a parameter to a checked API to do what one
+`.padding` already did.
+
+`CanvasArea.occlusion` is the single value: the inspector's width plus its gaps
+on the trailing edge, and the title bar's height at the top. The photograph, the
+histogram, the zoom pill and the look badge all take it, so nothing that
+describes the picture ends up beneath something else.
+
+### Checking a fault that only appears at some window sizes
+
+`darkroom-snapshot --layout` now also renders the editor at three window shapes
+and four zoom levels and asserts that **no pixel of the photograph falls inside
+the chrome's rectangle** — and, in the other direction, that some of it is drawn
+at all. An inset large enough to hide the picture would pass a leak test while
+being far worse.
+
+Three things went wrong in building that check, all worth keeping:
+
+- The probe drew its marker image through `NSGraphicsContext`, which trapped in
+  a command-line tool. Writing the bytes into the bitmap directly has fewer
+  moving parts and gives an exactly known colour.
+- The marker was injected by way of a `loadForTesting` hook added to `Editor`.
+  That was removed in favour of writing a PNG and opening it through the real
+  `open(_:)`. **A test-only door into production code is a door that can drift
+  from the one people use.**
+- The predicate looked for the colour that was written to the file. Pure sRGB
+  green does not survive the round trip through the working space — it arrives
+  at roughly (117, 251, 90) — so the check rejected every pixel of the
+  photograph and reported that the photograph was missing. It now tests green
+  *dominance*. A false negative is the dangerous direction here: it says the
+  layout is broken when the measurement is.
+
+Mutation-tested by dropping the trailing inset, dropping the title-bar inset,
+removing the padding entirely, and making the inset so large the picture
+vanished. All four caught.
+
+**Not verifiable from here:** the window buttons themselves. An offscreen render
+has no window chrome, so whether the traffic lights sit comfortably over the
+canvas is a question only running the app answers.

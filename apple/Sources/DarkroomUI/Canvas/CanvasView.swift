@@ -132,33 +132,65 @@ public struct CanvasArea: View {
     @Bindable public var editor: Editor
     public var rendering: CanvasRendering
 
-    public init(editor: Editor, rendering: CanvasRendering = .live) {
+    /// The part of the canvas that floating chrome sits over.
+    ///
+    /// The canvas runs edge to edge — under the inspector, behind the window
+    /// buttons — so that the window reads as one surface with things floating
+    /// on it rather than as panels butted together. The photograph is confined
+    /// to what is left, because a picture hidden behind a panel is a picture
+    /// you cannot judge, and a translucent panel with a photograph behind it
+    /// takes its colour from whatever you are grading.
+    ///
+    /// The surround passes underneath quite happily: it is a fixed neutral and
+    /// has nothing to give away.
+    public var occlusion: EdgeInsets
+
+    public init(
+        editor: Editor,
+        rendering: CanvasRendering = .live,
+        occlusion: EdgeInsets = EdgeInsets()
+    ) {
         self.editor = editor
         self.rendering = rendering
+        self.occlusion = occlusion
     }
 
     public var body: some View {
         ZStack {
+            // The surround alone runs the full width and height of the window,
+            // beneath the inspector and behind the window buttons. It is a
+            // fixed neutral, so it has nothing to give away by being seen
+            // through translucent chrome.
             surround
 
             if editor.hasImage {
-                canvas.padding(editor.zoom == nil ? 24 : 0)
+                // Everything else is inset by the occlusion, so the photograph
+                // and the controls that describe it stay in the part of the
+                // window nothing is floating over.
+                canvas
+                    .padding(editor.zoom == nil ? 24 : 0)
+                    .padding(occlusion)
             } else {
-                EmptyCanvas()
+                EmptyCanvas().padding(occlusion)
             }
 
             if editor.hasImage, editor.showsCanvasScope {
                 CanvasScope(histogram: editor.histogram)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(occlusion)
                     .transition(.opacity)
             }
 
             if editor.isComparing {
-                comparisonBadge
+                comparisonBadge.padding(occlusion)
+            }
+
+            if editor.hasImage, !editor.state.look.isNone, !editor.isComparing {
+                lookBadge.padding(occlusion)
             }
 
             if editor.hasImage {
-                zoomControl
+                zoomControl.padding(occlusion)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -281,6 +313,46 @@ public struct CanvasArea: View {
                 .padding(.top, 16)
             Spacer()
         }
+    }
+
+    /// The active look, named on the canvas it grades.
+    ///
+    /// A look is otherwise invisible state: the row that selected it may be
+    /// scrolled out of view, and the canvas is the thing actually being
+    /// looked at. The chip answers "what is on this image?" without a trip
+    /// to the inspector — the same way Find My labels the selected dot on
+    /// the map rather than making you check the list.
+    ///
+    /// Intensity appears only when it departs from full strength — quiet at
+    /// the default, for the same reason the zoom readout is quiet at Fit.
+    /// Hidden while comparing: the before image carries no look, and naming
+    /// one over it would be a lie.
+    private var lookBadge: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                Text(badgeText)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.regularMaterial, in: Capsule())
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.08)))
+                    .padding(12)
+                Spacer()
+            }
+        }
+        // A status, not a control: it must never swallow a click meant for
+        // the canvas beneath it.
+        .allowsHitTesting(false)
+        .transition(.opacity)
+    }
+
+    private var badgeText: String {
+        let title = editor.state.look.title
+        let intensity = Int(editor.state.lookIntensity.rounded())
+        return intensity == 100 ? title : "\(title) · \(intensity)%"
     }
 }
 

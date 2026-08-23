@@ -17,7 +17,11 @@ public struct DarkroomScene: Scene {
         WindowGroup {
             EditorWindow(editor: editor)
         }
-        .windowToolbarStyle(.unified)
+        // No title bar, so the canvas reaches the top of the window and the
+        // window reads as one surface. The close, minimise and zoom buttons
+        // still float in the corner; `CanvasArea.occlusion` keeps the
+        // photograph out from under them.
+        .windowStyle(.hiddenTitleBar)
         .commands { commands }
     }
 
@@ -30,6 +34,23 @@ public struct DarkroomScene: Scene {
                 EditorWindow(editor: editor).openPhotograph()
             }
             .keyboardShortcut("o")
+
+            // Where a photograph you had open yesterday is expected to be.
+            Menu("Open Recent") {
+                if editor.recentFiles.isEmpty {
+                    Text("No Recent Files")
+                } else {
+                    ForEach(editor.recentFiles, id: \.self) { path in
+                        Button(URL(fileURLWithPath: path).lastPathComponent) {
+                            editor.open(URL(fileURLWithPath: path))
+                        }
+                    }
+
+                    Divider()
+
+                    Button("Clear Menu") { editor.clearRecentFiles() }
+                }
+            }
         }
 
         CommandGroup(replacing: .saveItem) {
@@ -160,6 +181,17 @@ public struct DarkroomScene: Scene {
                         modifiers: .command
                     )
             }
+
+            Divider()
+
+            // The Looks tab's search field, reachable from the keyboard. The
+            // command switches the tab and stamps a focus request; the field
+            // takes it from there. ⌘F is where a Mac user looks for find.
+            Button("Find Look…") {
+                editor.inspectorTab = .looks
+                editor.lookSearchRequest = UUID()
+            }
+            .keyboardShortcut("f")
 
             Divider()
 

@@ -20,6 +20,14 @@ public struct InspectorView: View {
     /// between tabs rather than cutting.
     @Namespace private var tabSelection
 
+    /// The Looks tab's query, held here so the field can stay pinned above
+    /// the scrolling list — a search field that scrolls away is a search
+    /// field you stop using.
+    @State private var lookSearch = ""
+
+    /// Focus for that field, driven by the Find Look menu command.
+    @FocusState private var lookSearchFocused: Bool
+
     public init(editor: Editor) {
         self.editor = editor
     }
@@ -28,12 +36,18 @@ public struct InspectorView: View {
         VStack(spacing: 0) {
             header
 
+            if editor.inspectorTab == .looks {
+                LookSearchField(text: $lookSearch, isFocused: $lookSearchFocused)
+                    .padding(.horizontal, InspectorGeometry.panelInset)
+                    .padding(.bottom, 8)
+            }
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     switch editor.inspectorTab {
                     case .adjust: adjustments
                     case .curves: CurveEditor(editor: editor)
-                    case .looks: LookPicker(editor: editor)
+                    case .looks: LookPicker(editor: editor, searchText: lookSearch)
                     case .scopes: ScopePanel(editor: editor)
                     }
                 }
@@ -55,6 +69,14 @@ public struct InspectorView: View {
         // being bolted to it.
         .inspectorPanel()
         .environment(\.colorScheme, .dark)
+        // On the panel rather than on the field: the Find Look command stamps
+        // its token in the same transaction that switches the tab, and an
+        // observer living on the field would attach after the change it is
+        // meant to see. The runloop hop then lets the field appear before it
+        // is asked to take focus.
+        .onChange(of: editor.lookSearchRequest) { _, _ in
+            DispatchQueue.main.async { lookSearchFocused = true }
+        }
     }
 
     // MARK: - Header

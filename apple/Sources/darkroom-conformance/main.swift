@@ -38,6 +38,7 @@ do {
             + CurveHandleChecks.all()
             + WhiteBalanceChecks.all()
             + SessionChecks.all()
+            + UserLookChecks.all()
     )
     print(report.formatted(verbose: verbose))
     exit(report.passed ? 0 : 1)
