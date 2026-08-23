@@ -16,10 +16,15 @@ public enum CanvasChrome {
 
     /// Space kept clear on the leading edge for the window buttons themselves.
     ///
-    /// The three buttons end around 63 points in. The gap after them is set to
-    /// match the gap *between* them, so the first control reads as the next
-    /// item in the same row rather than as something parked further along.
-    public static let windowButtonWidth: Double = 72
+    /// The three buttons end about 66 points in, and this leaves roughly 22
+    /// after them — which is where a standard toolbar puts its first item.
+    ///
+    /// Matching the gap *between* the buttons was tried and is wrong. Equal
+    /// distances do not read as equal separation when the shapes differ that
+    /// much: a 26-point capsule sitting the same 8 points from a 12-point
+    /// circle crowds it, because the eye measures the gap against the size of
+    /// what is on either side of it.
+    public static let windowButtonWidth: Double = 88
 
     /// Inset from the window's edges for anything floating on the canvas.
     public static let margin: Double = 12
