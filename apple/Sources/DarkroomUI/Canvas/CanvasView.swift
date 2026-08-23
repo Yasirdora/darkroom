@@ -174,13 +174,6 @@ public struct CanvasArea: View {
                 EmptyCanvas().padding(occlusion)
             }
 
-            if editor.hasImage, editor.showsCanvasScope {
-                CanvasScope(histogram: editor.histogram)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(occlusion)
-                    .transition(.opacity)
-            }
-
             if editor.isComparing {
                 comparisonBadge.padding(occlusion)
             }

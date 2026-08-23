@@ -352,26 +352,6 @@ public final class Editor {
         group.keys.allSatisfy { state.adjustments[$0] == $0.neutralValue }
     }
 
-    /// Whether the histogram floats over the photograph.
-    ///
-    /// The scopes live in a tab of their own, which means the moment you go
-    /// looking at a measurement you stop being able to see the controls — and a
-    /// histogram is read *while* adjusting, not afterwards. A small one in the
-    /// corner of the canvas costs nothing and removes the choice.
-    ///
-    /// Defaults to on. Someone who has never heard of a histogram loses a
-    /// corner of empty surround; someone who wants one would not have found it
-    /// behind a tab.
-    public var showsCanvasScope: Bool = UserDefaults.standard
-        .object(forKey: Editor.canvasScopeKey) as? Bool ?? true
-    {
-        didSet {
-            UserDefaults.standard.set(showsCanvasScope, forKey: Editor.canvasScopeKey)
-        }
-    }
-
-    private static let canvasScopeKey = "canvas.showsScope"
-
     // MARK: - Inspector panes
 
     /// Panes the user has closed.

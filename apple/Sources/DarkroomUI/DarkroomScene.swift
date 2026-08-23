@@ -164,13 +164,6 @@ public struct DarkroomScene: Scene {
 
             Divider()
 
-            Button(editor.showsCanvasScope ? "Hide Histogram" : "Show Histogram") {
-                editor.showsCanvasScope.toggle()
-            }
-            .keyboardShortcut("h", modifiers: [.command, .shift])
-            .disabled(!editor.hasImage)
-
-            Divider()
         }
 
         CommandMenu("Inspector") {

@@ -1184,15 +1184,20 @@ first one worth having — which is why macOS 26 says not to nest glass. Radii a
 concentric: pane radius is panel radius less the inset between them, derived in
 `InspectorGeometry` rather than written down twice.
 
-## The histogram belongs over the photograph
+## The histogram over the photograph, and why it was removed
+
+**Removed.** What follows is why it was built and what actually happened, kept
+because the reasoning was sound and the outcome still went the wrong way.
+
+
 
 A histogram is read *while* adjusting — it answers "is that highlight about to
 clip", and the question arises with a hand already on a slider. Keeping the only
 copy behind a Scopes tab forced a choice between seeing the measurement and
 seeing the control.
 
-It floats in the corner of the canvas now, on by default, ⇧⌘H to dismiss. Two
-properties keep it from being a nuisance:
+It floated in the corner of the canvas, on by default, ⇧⌘H to dismiss. Two
+properties kept it from being a nuisance:
 
 - It **never takes a click**. Every canvas gesture passes through it —
   `allowsHitTesting(false)`. A panel that floats over the work and quietly
@@ -1715,3 +1720,25 @@ blanking it: the check fails immediately.
 
 **Still not verifiable offscreen:** whether the row genuinely aligns with the
 traffic lights. A render has no window chrome, so the only proof is running it.
+
+
+### What went wrong with it
+
+The argument for a floating histogram is good and I still think it is correct:
+a histogram is read *while* adjusting, and putting the only copy behind a tab
+forces a choice between seeing the measurement and seeing the control.
+
+What was wrong was the response to being told there were two of them. The first
+answer deleted the panel copy — wrong, and reverted. The second kept both and
+added a pin to the panel's title line to relate them, on the theory that they
+were one instrument at two viewing distances.
+
+That theory was fine and the interface still read as duplication, because on the
+Scopes tab both are on screen at once and no amount of explaining the
+relationship changes what the eye sees. **A control added to justify a
+duplication is a second thing to understand, not a resolution of the first.**
+
+The floating copy, its stored preference, its menu command and the pin are all
+gone. If it returns, the shape to try is showing it only on the tabs that are
+*not* the Scopes tab — where it never competes with the panel copy, and where
+its original argument actually applies.
