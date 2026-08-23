@@ -54,7 +54,7 @@ enum OcclusionCheck {
                 let scale = pixels.scale
                 let trailing = InspectorGeometry.panelWidth + InspectorGeometry.panelPadding * 2
                 let firstOccludedColumn = Int((size.width - trailing) * scale)
-                let titleBarRows = Int(28 * scale)
+                let titleBarRows = Int(CanvasChrome.topInset * scale)
 
                 var underPanel = 0, underButtons = 0
                 for row in 0..<pixels.height {
@@ -69,7 +69,7 @@ enum OcclusionCheck {
                     failures.append("occlusion: \(underPanel) pixels of photograph under the inspector \(where_)")
                 }
                 if underButtons > 0 {
-                    failures.append("occlusion: \(underButtons) pixels of photograph under the window buttons \(where_)")
+                    failures.append("occlusion: \(underButtons) pixels of photograph under the top controls \(where_)")
                 }
 
                 // And the opposite error — an inset so large the photograph

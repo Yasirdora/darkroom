@@ -107,6 +107,29 @@ enum LayoutStability {
             })
         }
 
+        // The floating canvas controls, each one across the states it can hold.
+        //
+        // Compared enabled against disabled — the *same* control at two values,
+        // not three different controls against each other. The first version of
+        // this compared the folder, compare and share buttons to one another,
+        // which passes whatever any of them does: they are all the same size by
+        // construction, so the comparison could never fail. A check whose
+        // subject is wrong is a check that reports on nothing.
+        for (name, symbol) in [
+            ("open", "folder"),
+            ("compare", "circle.righthalf.filled"),
+            ("share", "square.and.arrow.up"),
+        ] {
+            compare("canvas control \(name)", width: 120, [
+                ("enabled", CanvasControlButton(
+                    symbol: symbol, label: name, help: "", isEnabled: true
+                ) {}),
+                ("disabled", CanvasControlButton(
+                    symbol: symbol, label: name, help: "", isEnabled: false
+                ) {}),
+            ])
+        }
+
         // A pane, edited and not, open and closed. The reset button appearing
         // on the first edit is the fault that was reported.
         let editor = Editor()

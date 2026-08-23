@@ -1599,3 +1599,45 @@ vanished. All four caught.
 **Not verifiable from here:** the window buttons themselves. An offscreen render
 has no window chrome, so whether the traffic lights sit comfortably over the
 canvas is a question only running the app answers.
+
+## Hiding the title bar took the toolbar with it
+
+Reported as a question — *did you put share/export and before/after on the left?*
+— and the answer was worse than no: **the previous commit removed them.** Open,
+Compare and Share lived in the window's toolbar, and `.windowStyle(.hiddenTitleBar)`
+hides the toolbar along with the bar. They were reachable only from menus, and
+nothing in the suite noticed, because every check the project has asks whether
+what is drawn is correct — never whether something that used to be there still is.
+
+They are back as a floating cluster on the line the window buttons occupy. That
+line is what a title bar was *for*, and it is still the right home for actions
+that apply to the document as a whole rather than to the grade.
+
+`CanvasChrome` now holds the insets, read by both the window that applies them
+and the occlusion check that asserts against them. Two copies of those numbers
+would eventually disagree, and the check would then be confirming the wrong
+rectangle — worse than having no check.
+
+### The check that tested nothing
+
+The cluster was added to `--layout` by comparing the folder, compare and share
+buttons *against each other*. That passes no matter what any of them does: they
+are the same size by construction, so the comparison could never fail. Proved by
+mutation — making a button's width depend on its enabled state sailed straight
+through.
+
+Corrected to compare each control against **itself** at both values, which is
+what the rule actually says: a control occupies the same space at every value it
+can hold. The same mutation now fails immediately.
+
+A check whose *subject* is wrong is not a weak check, it is a decoration. It had
+been passing for the entire time it existed.
+
+### One fault this cannot catch, and the answer to it
+
+Removing `.contentShape(Rectangle())` — the fault reported twice in this project
+— changes no size, so a size-based check cannot see it. Rather than build a
+fragile hit-testing harness, both the frame and the content shape live inside
+`CanvasControlButton`, so a call site cannot supply one without the other. The
+same answer as the pane's clip: where a rule cannot be checked, make it
+impossible to break instead.

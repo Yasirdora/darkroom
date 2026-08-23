@@ -27,13 +27,13 @@ public struct EditorWindow: View {
     /// photograph should keep on the other side, so the picture is not pressed
     /// against the panel.
     ///
-    /// The top figure is the window's title bar. The bar itself is hidden so
-    /// the canvas reaches the top of the window, but the close, minimise and
-    /// zoom buttons still float there, and a photograph must not run underneath
-    /// them.
+    /// The top figure is the line the window buttons and the document controls
+    /// share. The title bar itself is hidden so the canvas reaches the top of
+    /// the window, but both of those still float there, and a photograph must
+    /// not run underneath either.
     private var canvasOcclusion: EdgeInsets {
         EdgeInsets(
-            top: 28,
+            top: CanvasChrome.topInset,
             leading: 0,
             bottom: 0,
             trailing: InspectorGeometry.panelWidth + InspectorGeometry.panelPadding * 2
@@ -62,6 +62,8 @@ public struct EditorWindow: View {
                     editor.open(url)
                     return true
                 } isTargeted: { isTargetedForDrop = $0 }
+
+            documentControls
 
             InspectorView(editor: editor)
                 .padding(.vertical, InspectorGeometry.panelPadding)
@@ -95,7 +97,6 @@ public struct EditorWindow: View {
         } message: { message in
             Text(message)
         }
-        .toolbar { toolbarContent }
         // The toolbar carries the canvas's own tone rather than the system
         // window material.
         //
@@ -132,47 +133,49 @@ public struct EditorWindow: View {
         return "\(head)…\(tail)"
     }
 
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Button {
-                openPhotograph()
-            } label: {
-                Label("Open", systemImage: "folder")
-            }
-            .help("Open a photograph")
-        }
+    /// Open, compare and share, floating beside the window buttons.
+    ///
+    /// These lived in the toolbar until the title bar was hidden, which took
+    /// them off the screen entirely and left them reachable only from menus.
+    /// They belong on the same line the window buttons occupy — that line is
+    /// what a title bar was for, and it is still the right place for the
+    /// actions that apply to the document as a whole.
+    private var documentControls: some View {
+        CanvasControlCluster {
+            CanvasControlButton(
+                symbol: "folder",
+                label: "Open",
+                help: "Open a photograph"
+            ) { openPhotograph() }
 
-        ToolbarItemGroup {
+            CanvasControlButton(
+                symbol: "circle.righthalf.filled",
+                label: "Compare",
+                help: "Hold to see the image before grading",
+                isEnabled: editor.hasImage
+            ) {}
             // Press and hold, not a toggle. Comparing is a momentary act — you
-            // look, then you carry on — and a toggle leaves the app in a state
-            // where the controls no longer match what is on screen.
-            Button {
-            } label: {
-                // A split disc: the conventional before/after mark, and not
-                // confusable with the sidebar toggle the previous icon
-                // resembled.
-                Label("Compare", systemImage: "circle.righthalf.filled")
-            }
-            .help("Hold to see the image before grading")
-            .disabled(!editor.hasImage)
-            .onLongPressGesture(minimumDuration: 0) {
-            } onPressingChanged: { pressing in
+            // look, then carry on — and a toggle leaves the app in a state where
+            // the controls no longer match what is on screen.
+            .onLongPressGesture(minimumDuration: 0) {} onPressingChanged: { pressing in
+                guard editor.hasImage else { return }
                 editor.isComparing = pressing
             }
 
-            Button {
-                sharePhotograph()
-            } label: {
-                Label("Share", systemImage: "square.and.arrow.up")
-            }
-            // The share glyph is a contract: it opens the system's share
-            // sheet, with AirDrop, Photos and Messages already in it. Export
-            // to a file lives in the File menu (⌘E), with a save panel that
-            // matches what it does.
-            .help("Share the graded image")
-            .disabled(!editor.hasImage)
+            CanvasControlButton(
+                symbol: "square.and.arrow.up",
+                label: "Share",
+                // The share glyph is a contract: it opens the system's share
+                // sheet, with AirDrop, Photos and Messages already in it.
+                // Export to a file lives in the File menu (⌘E), with a save
+                // panel that matches what it does.
+                help: "Share the graded image",
+                isEnabled: editor.hasImage
+            ) { sharePhotograph() }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.leading, CanvasChrome.windowButtonWidth)
+        .padding(.top, 10)
     }
 
     // MARK: - Panels
