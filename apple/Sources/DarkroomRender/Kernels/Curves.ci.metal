@@ -90,10 +90,15 @@ extern "C" float4 darkroomCurves(
         float mapped = lookup(table, luma, tableWidth).a;
         float delta = mapped - luma;
 
-        // The per-channel weights are a deliberate warm bias when lifting and a
-        // cool one when pulling down, matching how a photographic print
-        // responds to exposure rather than how a monitor does.
-        c = clamp(c + delta * float3(0.9f, 1.05f, 0.85f), 0.0f, 1.0f);
+        // Applied equally to all three channels. The weights that used to be
+        // here — 0.9 red, 1.05 green, 0.85 blue — were described as a warm bias
+        // matching a print's response to exposure, and did not do that: warm
+        // and cool is the red-to-blue axis, and those weights make green the
+        // outlier, which is tint. Lifting the curve tinted the picture green
+        // and pulling it down tinted it magenta.
+        //
+        // A master curve is the one control that must not change hue.
+        c = clamp(c + delta, 0.0f, 1.0f);
     }
 
     return float4(srgb_decode(clamp(c, 0.0f, 1.0f)) * alpha, alpha);

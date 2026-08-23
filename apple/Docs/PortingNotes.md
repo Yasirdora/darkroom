@@ -1742,3 +1742,56 @@ The floating copy, its stored preference, its menu command and the pin are all
 gone. If it returns, the shape to try is showing it only on the tabs that are
 *not* the Scopes tab — where it never competes with the panel copy, and where
 its original argument actually applies.
+
+## The master curve was not neutral
+
+Reported from use: pushing the RGB curve down sent the picture red, pulling it
+up sent it green. Correct, and the cause was sitting in a comment claiming the
+opposite.
+
+The master curve works by offsetting all three channels by a luminance delta —
+which is right, and is why it moves tone without desaturating. But the offset
+was weighted **0.9 red, 1.05 green, 0.85 blue**, described in all three engines
+as "a deliberate warm bias in the shadows and a cool one in the highlights,
+matching how a photographic print responds to exposure."
+
+It did not do that. **Warm and cool is the red-to-blue axis.** Those weights put
+green 0.15 from red and 0.20 from blue while red and blue sit 0.05 apart — so
+the dominant axis is green against magenta, which is *tint*, not warmth. The
+small warm bias that was intended is real and is swamped by a green shift an
+order of magnitude larger.
+
+Measured on a neutral grey:
+
+| delta | R | G | B | spread |
+|---|---|---|---|---|
+| −100 | 38 | 23 | 43 | **20 codes magenta** |
+| +100 | 218 | 233 | 213 | **20 codes green** |
+
+A master curve is the one control that must not change hue. It is what people
+reach for to move tone without touching colour, and every serious tool keeps it
+neutral; the per-channel curves are where colour belongs. The offset is now
+applied equally.
+
+The print behaviour that comment was reaching for is genuine, and it now exists
+where it belongs — in the film model's print stage, applied to looks rather than
+baked invisibly into a tonal control.
+
+### Three copies, and only two were obvious
+
+The weights lived in the TypeScript engine, the Swift CPU path, and the Metal
+kernel. Fixing the first two left conformance failing by exactly 2 code values,
+and the temptation was to hunt for a rounding difference in the Bézier solver.
+
+What settled it was noticing that Swift's output matched the **previously
+committed** vector exactly — not approximately. A rounding discrepancy does not
+reproduce an old value to the digit. Something was still running the old
+arithmetic, and it was `Curves.ci.metal`, reached only by the render checks.
+
+Worth keeping as a habit: when a number matches a *previous* answer exactly,
+that is not a precision problem, it is a stale path.
+
+Mutation-tested by restoring the weights in each path separately, and by
+applying the master per-channel instead of as a luminance offset. All three
+caught, each by a different suite — the CPU by the vector checks, the GPU by the
+render checks.

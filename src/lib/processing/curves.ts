@@ -109,15 +109,30 @@ export const applyCurves = (source: ImageData, curves: Curves): ImageData => {
     if (hasG) g = applyCurveToValue(g, curves.g);
     if (hasB) b = applyCurveToValue(b, curves.b);
 
-    // Master curve (luma weighted or direct on channels for classic "master" feel)
+    // Master curve: a luminance offset applied equally to all three channels.
+    //
+    // Equally, and that is the whole point. The offset used to be weighted
+    // 0.9 red, 1.05 green, 0.85 blue, described as a warm bias matching how a
+    // print responds to exposure. It did not do that. Warm and cool is the
+    // red-to-blue axis, and those weights make *green* the outlier — the
+    // green-to-magenta axis, which is tint. Pushing the curve up tinted the
+    // picture green and pushing it down tinted it magenta, by as much as 20
+    // code values on a neutral grey.
+    //
+    // A master curve is the one control that must not change hue. It is what
+    // people reach for to move tone without touching colour, and every serious
+    // tool keeps it neutral; the per-channel curves are where colour lives.
+    //
+    // The print behaviour the old comment was reaching for is real, and it now
+    // exists where it belongs — in the film model's print stage, applied to
+    // looks rather than baked invisibly into a tonal control.
     if (hasMaster) {
       const lm = filmLuma(r, g, b);
       const masterY = applyCurveToValue(lm, curves.master);
-      // Offset by delta (perceptual master curve lift)
       const delta = masterY - lm;
-      r = clampByte(r + delta * 0.9);
-      g = clampByte(g + delta * 1.05);
-      b = clampByte(b + delta * 0.85);
+      r = clampByte(r + delta);
+      g = clampByte(g + delta);
+      b = clampByte(b + delta);
     }
 
     output[i] = clampByte(r);

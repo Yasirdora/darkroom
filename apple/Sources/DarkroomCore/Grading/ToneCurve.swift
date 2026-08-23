@@ -222,10 +222,21 @@ public struct ChannelCurves: Sendable, Equatable, Hashable, Codable {
     /// them. Offsetting by a luminance delta moves tone while leaving those
     /// ratios, and therefore the hue, close to intact.
     ///
-    /// The offset is weighted slightly per channel — 0.9 red, 1.05 green, 0.85
-    /// blue — which is a deliberate warm bias in the shadows and a cool one in
-    /// the highlights, matching how a photographic print responds to exposure
-    /// rather than how a monitor does.
+    /// The offset is applied **equally** to all three channels, and that is the
+    /// whole point. It used to be weighted 0.9 red, 1.05 green, 0.85 blue,
+    /// described as a warm bias matching how a print responds to exposure. It
+    /// did not do that. Warm and cool is the red-to-blue axis, and those
+    /// weights make *green* the outlier — the green-to-magenta axis, which is
+    /// tint. Pushing the curve up tinted the picture green and pushing it down
+    /// tinted it magenta, by as much as 20 code values on a neutral grey.
+    ///
+    /// A master curve is the one control that must not change hue: it is what
+    /// people reach for to move tone without touching colour, and every serious
+    /// tool keeps it neutral. The per-channel curves are where colour lives.
+    ///
+    /// The print behaviour that comment was reaching for is real, and now
+    /// exists where it belongs — in the film model's print stage, applied to
+    /// looks rather than baked invisibly into a tonal control.
     public func apply(r: Double, g: Double, b: Double) -> (r: Double, g: Double, b: Double) {
         guard isActive else { return (r, g, b) }
 
@@ -236,9 +247,9 @@ public struct ChannelCurves: Sendable, Equatable, Hashable, Codable {
         if let master, master.isActive {
             let luminance = filmLuma(red, green, blue)
             let delta = curved(luminance, through: master) - luminance
-            red = JSMath.clampByte(red + delta * 0.9)
-            green = JSMath.clampByte(green + delta * 1.05)
-            blue = JSMath.clampByte(blue + delta * 0.85)
+            red = JSMath.clampByte(red + delta)
+            green = JSMath.clampByte(green + delta)
+            blue = JSMath.clampByte(blue + delta)
         }
 
         return (red, green, blue)
