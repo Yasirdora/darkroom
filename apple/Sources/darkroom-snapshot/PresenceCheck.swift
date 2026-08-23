@@ -41,13 +41,22 @@ enum PresenceCheck {
         Region(
             name: "the Open control, beside the window buttons",
             leading: CanvasChrome.windowButtonWidth, trailing: nil,
-            width: 44, top: 10, height: 26
+            width: 44, top: CanvasChrome.controlRowTop, height: 26
         ),
         Region(
-            name: "Compare and Share, clear of the inspector",
+            // Not a control, but it disappeared once already — hiding the title
+            // bar took the document's name with it, and an editor that cannot
+            // say which photograph is open has lost something windows have
+            // provided since 1984.
+            name: "the document's name, after the Open control",
+            leading: CanvasChrome.windowButtonWidth + 54, trailing: nil,
+            width: 90, top: CanvasChrome.controlRowTop + 2, height: 20
+        ),
+        Region(
+            name: "Compare and Share, at the window's top right",
             leading: nil,
-            trailing: InspectorGeometry.panelWidth + InspectorGeometry.panelPadding * 2 + 76,
-            width: 72, top: 10, height: 26
+            trailing: CanvasChrome.margin + 76,
+            width: 72, top: CanvasChrome.controlRowTop, height: 26
         ),
     ]
 

@@ -15,10 +15,23 @@ public enum CanvasChrome {
     public static let topInset: Double = 46
 
     /// Space kept clear on the leading edge for the window buttons themselves.
-    public static let windowButtonWidth: Double = 78
+    ///
+    /// The three buttons end around 63 points in. The gap after them is set to
+    /// match the gap *between* them, so the first control reads as the next
+    /// item in the same row rather than as something parked further along.
+    public static let windowButtonWidth: Double = 72
 
     /// Inset from the window's edges for anything floating on the canvas.
     public static let margin: Double = 12
+
+    /// Top of the row the window buttons sit on.
+    ///
+    /// The buttons are about 12 points tall centred near y = 20, so a 26-point
+    /// control starting at 7 shares their centre line. Measured from the
+    /// window's true top, which is why the window's content ignores the top
+    /// safe area — SwiftUI still reserves one for a hidden title bar, and
+    /// everything measured inside it lands a row too low.
+    public static let controlRowTop: Double = 7
 }
 
 /// A group of controls floating over the canvas.

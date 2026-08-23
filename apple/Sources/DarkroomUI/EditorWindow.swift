@@ -67,7 +67,11 @@ public struct EditorWindow: View {
             trailingControls
 
             InspectorView(editor: editor)
-                .padding(.vertical, InspectorGeometry.panelPadding)
+                // Starts below the top line rather than at the window's edge,
+                // so the document controls have a row of their own across the
+                // full width and nothing is crowded into a corner.
+                .padding(.top, CanvasChrome.topInset)
+                .padding(.bottom, InspectorGeometry.panelPadding)
                 .padding(.trailing, InspectorGeometry.panelPadding)
         }
         .frame(minWidth: 900, minHeight: 600)
@@ -98,21 +102,10 @@ public struct EditorWindow: View {
         } message: { message in
             Text(message)
         }
-        // The toolbar carries the canvas's own tone rather than the system
-        // window material.
-        //
-        // Two reasons, and the second is the real one. A material behind the
-        // chrome sits directly above the photograph and picks up whatever is
-        // behind the window, which makes the frame around the image change tone
-        // as the window moves — and colour is judged relative to its
-        // surroundings. The first reason is simply that a mismatched slab above
-        // the canvas reads as an accident.
-        .toolbarBackground(
-            Color(red: 0.10, green: 0.10, blue: 0.105),
-            for: .windowToolbar
-        )
-        .toolbarBackground(.visible, for: .windowToolbar)
-        .navigationTitle(windowTitle)
+        // Measured from the window's true top. SwiftUI reserves a top safe
+        // area even with the title bar hidden, and everything laid out inside
+        // it lands a row below the window buttons instead of beside them.
+        .ignoresSafeArea(.container, edges: .top)
     }
 
     /// The window title, shortened in the middle when a filename is long.
@@ -142,19 +135,39 @@ public struct EditorWindow: View {
     /// you do *with it* on the right is the same reading order as the window
     /// itself, and collapsing them into one cluster threw that away.
     private var leadingControls: some View {
-        CanvasControlCluster {
-            CanvasControlButton(
-                symbol: "folder",
-                label: "Open",
-                help: "Open a photograph"
-            ) { openPhotograph() }
+        HStack(spacing: 10) {
+            CanvasControlCluster {
+                CanvasControlButton(
+                    symbol: "folder",
+                    label: "Open",
+                    help: "Open a photograph"
+                ) { openPhotograph() }
+            }
+
+            // The document's name, where a title bar would have put it.
+            //
+            // Hiding the title bar took the title with it, and a photo editor
+            // that cannot tell you which photograph is open has lost something
+            // a window has provided since 1984. Quiet, because it is a label
+            // rather than a control.
+            Text(windowTitle)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .accessibilityLabel("Open photograph: \(windowTitle)")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.leading, CanvasChrome.windowButtonWidth)
-        .padding(.top, 10)
+        .padding(.top, CanvasChrome.controlRowTop)
     }
 
-    /// Comparing and sharing — trailing, just clear of the inspector.
+    /// Comparing and sharing — the window's top right, above the inspector.
+    ///
+    /// Above the panel rather than beside it, so the top of the window is one
+    /// continuous line: the document on the left, what you do with it on the
+    /// right, and everything that edits the photograph beneath. Tucked into the
+    /// gap left of the panel instead, they read as belonging to the canvas,
+    /// which is not what they act on.
     private var trailingControls: some View {
         CanvasControlCluster {
             CanvasControlButton(
@@ -183,8 +196,8 @@ public struct EditorWindow: View {
             ) { sharePhotograph() }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        .padding(.trailing, InspectorGeometry.panelWidth + InspectorGeometry.panelPadding * 2)
-        .padding(.top, 10)
+        .padding(.trailing, CanvasChrome.margin)
+        .padding(.top, CanvasChrome.controlRowTop)
     }
 
     // MARK: - Panels

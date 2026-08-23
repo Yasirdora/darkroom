@@ -1682,3 +1682,36 @@ there**.
 Mutation-tested against the real regression — removing both clusters, removing
 only the trailing pair, and collapsing all three onto the left, which is the
 mistake that was actually made. All three caught.
+
+## The top row
+
+Three corrections to where the canvas controls ended up, all reported.
+
+**The controls sat a row below the window buttons.** SwiftUI reserves a top
+safe area even when the title bar is hidden, so anything laid out inside it
+starts *below* the buttons rather than beside them. The window's content now
+ignores the top safe area and positions from the window's true top;
+`CanvasChrome.controlRowTop` puts a 26-point control on the buttons' centre
+line.
+
+**Open was parked too far along.** The buttons end around 63 points in, and the
+gap after them is now set to match the gap *between* them, so the first control
+reads as the next item in the same row.
+
+**Compare and Share belong at the window's top right, not tucked left of the
+inspector.** Above the panel rather than beside it, so the top of the window is
+one continuous line — the document on the left, what you do with it on the
+right, everything that edits the photograph beneath. The inspector starts below
+that line instead of at the window's edge.
+
+**And the title came back.** Hiding the title bar took the document's name with
+it, and an editor that cannot tell you which photograph is open has lost
+something windows have provided since 1984. It sits after the Open control,
+middle-truncated when long, quiet because it is a label and not a control.
+
+The presence check now covers all three regions, including the title — it
+vanished once, which is precisely the argument for watching it. Verified by
+blanking it: the check fails immediately.
+
+**Still not verifiable offscreen:** whether the row genuinely aligns with the
+traffic lights. A render has no window chrome, so the only proof is running it.
