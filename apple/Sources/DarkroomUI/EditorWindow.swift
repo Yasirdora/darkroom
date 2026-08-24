@@ -50,6 +50,7 @@ public struct EditorWindow: View {
         editor.zoom == nil ? chromeOcclusion : EdgeInsets()
     }
 
+
     public var body: some View {
         // One surface, with everything floating on it.
         //
@@ -63,7 +64,14 @@ public struct EditorWindow: View {
                 editor: editor,
                 rendering: rendering,
                 occlusion: photographOcclusion,
-                chromeOcclusion: chromeOcclusion
+                chromeOcclusion: chromeOcclusion,
+                // Whatever the chrome covers must be reachable by dragging.
+                // Without this a photograph centred in the whole window can be
+                // partly under the inspector while having no overhang at all,
+                // which is a picture you can see the edge of and never look at.
+                panFreedom: editor.zoom == nil
+                    ? .zero
+                    : CGSize(width: chromeOcclusion.trailing, height: chromeOcclusion.top)
             )
                 .overlay {
                     if isTargetedForDrop {

@@ -35,7 +35,8 @@ public enum CanvasComposition {
         in target: CGRect,
         zoom: Double? = nil,
         contentScale: CGFloat = 1,
-        pan: CGSize = .zero
+        pan: CGSize = .zero,
+        freedom: CGSize = .zero
     ) -> CIImage {
         // The ground is generated at full target size and composited *under*
         // the photograph, so no part of the drawable is left unwritten.
@@ -52,8 +53,9 @@ public enum CanvasComposition {
             return ground
         }
 
-        return place(image, in: target, zoom: zoom, contentScale: contentScale, pan: pan)
-            .composited(over: ground)
+        return place(
+            image, in: target, zoom: zoom, contentScale: contentScale, pan: pan, freedom: freedom
+        ).composited(over: ground)
     }
 
     /// How far the photograph may be moved from centre, in target pixels.
@@ -68,19 +70,32 @@ public enum CanvasComposition {
     /// cannot be nudged sideways at all — there is nothing off-screen to bring
     /// into view, and a control that moves nothing is worse than one that does
     /// not respond.
+    /// - Parameter freedom: Extra travel beyond the overhang, in target pixels.
+    ///
+    ///   This is what makes a full-bleed canvas usable rather than merely
+    ///   pretty. When the photograph runs beneath the inspector, the part under
+    ///   the panel is only reachable if the picture can be dragged out from
+    ///   under it — and the overhang alone does not allow that, because a
+    ///   photograph centred in the *whole* window may have no overhang at all
+    ///   while still being partly hidden.
+    ///
+    ///   Passing the chrome's own insets makes anything the chrome covers
+    ///   reachable, and nothing more: the picture can be pulled clear and no
+    ///   further.
     public static func panLimit(
         for image: CIImage,
         in target: CGRect,
         zoom: Double?,
-        contentScale: CGFloat
+        contentScale: CGFloat,
+        freedom: CGSize = .zero
     ) -> CGSize {
         let extent = image.extent
         guard extent.width > 0, extent.height > 0, !extent.isInfinite else { return .zero }
 
         let factor = scaleFactor(for: extent, in: target, zoom: zoom, contentScale: contentScale)
         return CGSize(
-            width: Swift.max(0, (extent.width * factor - target.width) / 2),
-            height: Swift.max(0, (extent.height * factor - target.height) / 2)
+            width: Swift.max(0, (extent.width * factor - target.width) / 2) + Swift.max(0, freedom.width),
+            height: Swift.max(0, (extent.height * factor - target.height) / 2) + Swift.max(0, freedom.height)
         )
     }
 
@@ -90,9 +105,12 @@ public enum CanvasComposition {
         for image: CIImage,
         in target: CGRect,
         zoom: Double?,
-        contentScale: CGFloat
+        contentScale: CGFloat,
+        freedom: CGSize = .zero
     ) -> CGSize {
-        let limit = panLimit(for: image, in: target, zoom: zoom, contentScale: contentScale)
+        let limit = panLimit(
+            for: image, in: target, zoom: zoom, contentScale: contentScale, freedom: freedom
+        )
         return CGSize(
             width: Swift.min(Swift.max(pan.width, -limit.width), limit.width),
             height: Swift.min(Swift.max(pan.height, -limit.height), limit.height)
@@ -122,13 +140,16 @@ public enum CanvasComposition {
         in target: CGRect,
         zoom: Double?,
         contentScale: CGFloat,
-        pan: CGSize = .zero
+        pan: CGSize = .zero,
+        freedom: CGSize = .zero
     ) -> CIImage {
         let extent = image.extent
         guard extent.width > 0, extent.height > 0 else { return image }
 
         let factor = scaleFactor(for: extent, in: target, zoom: zoom, contentScale: contentScale)
-        let offset = clampPan(pan, for: image, in: target, zoom: zoom, contentScale: contentScale)
+        let offset = clampPan(
+            pan, for: image, in: target, zoom: zoom, contentScale: contentScale, freedom: freedom
+        )
 
         let scaled = image.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
         let bounds = scaled.extent

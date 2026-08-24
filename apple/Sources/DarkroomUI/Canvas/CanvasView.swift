@@ -76,6 +76,9 @@ public struct CanvasView: NSViewRepresentable {
     /// Whether there is anywhere to pan — decides the cursor and the scroll.
     public var isPannable: Bool
 
+    /// Extra travel beyond the overhang, in points — what the chrome covers.
+    public var panFreedom: CGSize
+
     /// Reports how far the photograph *can* be panned, in points.
     ///
     /// The renderer is the only part that knows the drawable's size and the
@@ -89,6 +92,7 @@ public struct CanvasView: NSViewRepresentable {
         zoom: Double? = nil,
         pan: CGSize = .zero,
         isPannable: Bool = false,
+        panFreedom: CGSize = .zero,
         onScroll: @escaping (CGSize) -> Void = { _ in },
         onPanLimit: @escaping (CGSize) -> Void = { _ in }
     ) {
@@ -97,6 +101,7 @@ public struct CanvasView: NSViewRepresentable {
         self.zoom = zoom
         self.pan = pan
         self.isPannable = isPannable
+        self.panFreedom = panFreedom
         self.onScroll = onScroll
         self.onPanLimit = onPanLimit
     }
@@ -130,7 +135,8 @@ public struct CanvasView: NSViewRepresentable {
         view.onScroll = onScroll
         view.isPannable = isPannable
         nsContext.coordinator.update(
-            image: image, context: self.context, zoom: zoom, pan: pan, onPanLimit: onPanLimit
+            image: image, context: self.context, zoom: zoom, pan: pan,
+            freedom: panFreedom, onPanLimit: onPanLimit
         )
         return view
     }
@@ -139,7 +145,8 @@ public struct CanvasView: NSViewRepresentable {
         view.onScroll = onScroll
         view.isPannable = isPannable
         nsContext.coordinator.update(
-            image: image, context: self.context, zoom: zoom, pan: pan, onPanLimit: onPanLimit
+            image: image, context: self.context, zoom: zoom, pan: pan,
+            freedom: panFreedom, onPanLimit: onPanLimit
         )
         view.setNeedsDisplay(view.bounds)
     }
@@ -152,6 +159,7 @@ public struct CanvasView: NSViewRepresentable {
         private var context: RenderContext?
         private var zoom: Double?
         private var pan: CGSize = .zero
+        private var freedom: CGSize = .zero
         private var onPanLimit: (CGSize) -> Void = { _ in }
         private var reportedLimit: CGSize = .zero
         private var commandQueue: (any MTLCommandQueue)?
@@ -161,12 +169,14 @@ public struct CanvasView: NSViewRepresentable {
             context: RenderContext,
             zoom: Double?,
             pan: CGSize,
+            freedom: CGSize,
             onPanLimit: @escaping (CGSize) -> Void
         ) {
             self.image = image
             self.context = context
             self.zoom = zoom
             self.pan = pan
+            self.freedom = freedom
             self.onPanLimit = onPanLimit
             if commandQueue == nil {
                 commandQueue = context.device?.makeCommandQueue()
@@ -199,7 +209,9 @@ public struct CanvasView: NSViewRepresentable {
                 // The drag was measured in points; the composition works in
                 // drawable pixels. The vertical sign flips because Core Image
                 // counts upward from the bottom and a drag counts downward.
-                pan: CGSize(width: pan.width * scale, height: -pan.height * scale)
+                pan: CGSize(width: pan.width * scale, height: -pan.height * scale),
+                // Points to drawable pixels, like the pan itself.
+                freedom: CGSize(width: freedom.width * scale, height: freedom.height * scale)
             )
 
             // Reported only when it changes. The editor is observable, so
@@ -207,7 +219,8 @@ public struct CanvasView: NSViewRepresentable {
             // and redraw to set it again.
             if let image {
                 let limit = CanvasComposition.panLimit(
-                    for: image, in: target, zoom: zoom, contentScale: scale
+                    for: image, in: target, zoom: zoom, contentScale: scale,
+                    freedom: CGSize(width: freedom.width * scale, height: freedom.height * scale)
                 )
                 let points = CGSize(width: limit.width / scale, height: limit.height / scale)
                 if points != reportedLimit {
@@ -261,6 +274,10 @@ public struct CanvasArea: View {
     /// has nothing to give away.
     public var occlusion: EdgeInsets
 
+    /// Extra pan allowed so that whatever the chrome covers can be dragged
+    /// clear of it. In points.
+    public var panFreedom: CGSize = .zero
+
     /// What the controls floating on the canvas keep clear of.
     ///
     /// Separate from `occlusion`, because the photograph is allowed under the
@@ -279,12 +296,14 @@ public struct CanvasArea: View {
         editor: Editor,
         rendering: CanvasRendering = .live,
         occlusion: EdgeInsets = EdgeInsets(),
-        chromeOcclusion: EdgeInsets? = nil
+        chromeOcclusion: EdgeInsets? = nil,
+        panFreedom: CGSize = .zero
     ) {
         self.editor = editor
         self.rendering = rendering
         self.occlusion = occlusion
         self.chromeOcclusion = chromeOcclusion ?? occlusion
+        self.panFreedom = panFreedom
     }
 
     public var body: some View {
@@ -375,6 +394,7 @@ public struct CanvasArea: View {
                 zoom: editor.zoom,
                 pan: editor.pan,
                 isPannable: editor.canPan,
+                panFreedom: panFreedom,
                 onScroll: { delta in
                     // Scrolling moves the *content*, so the picture follows the
                     // fingers rather than the scrollbar would.

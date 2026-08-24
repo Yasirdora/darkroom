@@ -122,11 +122,18 @@ enum PresenceCheck {
     }
 }
 
-/// A solid image standing in for a photograph, written once and reused.
+/// Solid images standing in for photographs, written once and reused.
 @MainActor
 enum ProbeImage {
-    static let url: URL? = {
-        let width = 2400, height = 1400
+    /// Larger than any test window, so it overflows at every zoom.
+    static let url: URL? = write(width: 2400, height: 1400)
+
+    /// Small enough to fit the clear region at a modest zoom — the case that
+    /// was reported: at 0.5× a 1280-pixel photograph is 640 points wide and
+    /// has no business sliding under the inspector.
+    static let smallURL: URL? = write(width: 800, height: 600, name: "darkroom-probe-small.png")
+
+    private static func write(width: Int, height: Int, name: String = "darkroom-probe.png") -> URL? {
         guard let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height,
             bitsPerSample: 8, samplesPerPixel: 3, hasAlpha: false, isPlanar: false,
@@ -136,9 +143,8 @@ enum ProbeImage {
             plane[index] = 0; plane[index + 1] = 255; plane[index + 2] = 51
         }
         guard let data = rep.representation(using: .png, properties: [:]) else { return nil }
-        let url = FileManager.default.temporaryDirectory
-            .appending(path: "darkroom-probe.png")
+        let url = FileManager.default.temporaryDirectory.appending(path: name)
         do { try data.write(to: url) } catch { return nil }
         return url
-    }()
+    }
 }

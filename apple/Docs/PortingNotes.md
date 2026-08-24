@@ -1920,3 +1920,38 @@ once when it ends. Pushing per event would leave a stack to unwind.
 Both are gated on `Editor.canPan`, which requires a zoom *and* somewhere to go.
 A hand cursor over something that cannot move is a promise the interface does
 not keep — and an axis that already fits has nothing off-screen to reveal.
+
+## A full-bleed canvas has to be reachable
+
+Reported: at 1× and 0.5× the photograph slid under the inspector and could not
+be panned back out.
+
+Both halves of that were true, and the second is why the first mattered. The
+pan limit was the *overhang* — how much larger the photograph is than the window
+— and a photograph centred in the whole window can be partly beneath the
+inspector while being smaller than that window. Its overhang is zero, so the
+limit is zero, so the strip under the panel is a piece of the picture you can
+see the edge of and never look at.
+
+The limit now takes a **freedom**: extra travel beyond the overhang, in points,
+which the window sets to the chrome's own insets. Anything the chrome covers can
+be dragged out from under it, and nothing further. It *extends* the overhang
+rather than replacing it, so a photograph that already overflows keeps
+everything it had.
+
+### A fix aimed at the wrong thing
+
+The first attempt made the photograph go full-bleed only when it was larger than
+the *clear* region, on the reasoning that a picture which fits has no business
+sliding under a panel. It compiled, passed, and did not address the report: at
+0.5× a 1280-pixel photograph is 640 points wide, which is larger than the clear
+region and smaller than the window, so the condition was true and the behaviour
+unchanged.
+
+Worse, the check written for it could not tell: the probe was a small photograph
+that never reached the panel at any zoom, so restoring the old behaviour passed
+too. **Three mutations survived**, which is what said the fix was aimed at
+something that was not the problem — not that the code was fine.
+
+That whole approach was removed. The rule is the simple one again — zoomed means
+full-bleed — and what changed is that full-bleed now guarantees reachability.

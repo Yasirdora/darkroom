@@ -13,7 +13,7 @@ import DarkroomRender
 public enum PanChecks {
 
     public static func all() -> [CheckResult] {
-        [limitCheck(), clampCheck(), placementCheck()]
+        [limitCheck(), clampCheck(), placementCheck(), reachCheck()]
     }
 
     /// A landscape photograph, and a window shaped unlike it.
@@ -149,6 +149,70 @@ public enum PanChecks {
                 "panning to the stop uncovered the window vertically: \(hard)"
             )
         }
+
+        return check.finish()
+    }
+
+    // MARK: - Reaching what the chrome covers
+
+    /// Anything hidden by the floating chrome can be dragged out from under it.
+    ///
+    /// This is the case the overhang alone does not cover, and the one that was
+    /// reported. A photograph centred in the *whole* window can be partly
+    /// beneath the inspector while being smaller than that window — so its
+    /// overhang is zero, the pan limit is zero, and the hidden strip is a piece
+    /// of the picture you can see the edge of and never look at.
+    ///
+    /// Passing the chrome's insets as freedom makes exactly that strip
+    /// reachable, and nothing further.
+    static func reachCheck() -> CheckResult {
+        var check = Checker(suite: "Canvas pan", name: "whatever the chrome covers can be reached")
+
+        // A photograph wider than the clear region but narrower than the window
+        // — 640 points in an 890-point window with a 314-point panel, which is
+        // the shape that was reported.
+        let modest = CIImage(color: .gray).cropped(to: CGRect(x: 0, y: 0, width: 1280, height: 720))
+        let window = CGRect(x: 0, y: 0, width: 890, height: 700)
+        let chrome = CGSize(width: 314, height: 46)
+
+        let bare = CanvasComposition.panLimit(
+            for: modest, in: window, zoom: 0.5, contentScale: 1
+        )
+        check.expect(
+            bare.width == 0,
+            "this photograph should have no overhang of its own, so the check has a subject"
+        )
+
+        let reachable = CanvasComposition.panLimit(
+            for: modest, in: window, zoom: 0.5, contentScale: 1, freedom: chrome
+        )
+        check.expect(
+            reachable.width >= chrome.width - 0.001,
+            "the panel's width was not reachable: \(reachable.width) against \(chrome.width)"
+        )
+        check.expect(
+            reachable.height >= chrome.height - 0.001,
+            "the top controls' height was not reachable"
+        )
+
+        // Freedom adds to the overhang rather than replacing it, so a
+        // photograph that already overflows keeps everything it had.
+        let large = CIImage(color: .gray).cropped(to: CGRect(x: 0, y: 0, width: 4000, height: 3000))
+        let overhang = CanvasComposition.panLimit(for: large, in: window, zoom: 1, contentScale: 1)
+        let both = CanvasComposition.panLimit(
+            for: large, in: window, zoom: 1, contentScale: 1, freedom: chrome
+        )
+        check.expectWithin(
+            both.width, overhang.width + chrome.width, codes: 0.001,
+            "freedom replaced the overhang instead of extending it"
+        )
+
+        // And without it, nothing changes — the default has to stay inert or
+        // every existing behaviour shifts underneath it.
+        let untouched = CanvasComposition.panLimit(
+            for: large, in: window, zoom: 1, contentScale: 1, freedom: .zero
+        )
+        check.expectWithin(untouched.width, overhang.width, codes: 0.001, "zero freedom altered the limit")
 
         return check.finish()
     }

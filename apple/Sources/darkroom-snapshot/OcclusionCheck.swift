@@ -113,8 +113,8 @@ enum OcclusionCheck {
     /// through a hook added for the purpose. A test-only door into production
     /// code is a door that can drift from the one people actually use, and this
     /// check is about what happens on the real path.
-    private static func probe(zoom: Double?) -> EditorWindow? {
-        guard let url = markerFile else { return nil }
+    private static func probe(zoom: Double?, small: Bool = false) -> EditorWindow? {
+        guard let url = small ? ProbeImage.smallURL : markerFile else { return nil }
         let editor = Editor()
         editor.open(url)
         guard editor.hasImage else { return nil }
