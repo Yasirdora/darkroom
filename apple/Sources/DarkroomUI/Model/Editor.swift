@@ -92,7 +92,37 @@ public final class Editor {
     /// whole is a photograph you cannot judge the composition of. Zoom is for
     /// checking grain, focus and the shadow detail a curve is being pulled to
     /// find — a temporary inspection, not a working state.
-    public var zoom: Double?
+    public var zoom: Double? {
+        didSet {
+            // Returning to Fit re-centres. At Fit there is nothing off-screen
+            // to pan to, and leaving a stale offset behind means the next zoom
+            // starts somewhere the user did not put it.
+            if zoom == nil { pan = .zero }
+        }
+    }
+
+    /// How far the photograph is moved from centre, in points.
+    ///
+    /// Points rather than pixels, because a drag is measured in points and the
+    /// backing scale is the renderer's business. Clamped at the point of use —
+    /// see `CanvasComposition.clampPan` — since the limit depends on the
+    /// window's size, which the editor does not know.
+    public var pan: CGSize = .zero
+
+    /// How far the photograph can be panned, in points.
+    ///
+    /// Measured by the renderer, which is the only part that knows both the
+    /// window's size and the scale the photograph is drawn at. Zero on an axis
+    /// with no overhang.
+    public internal(set) var panLimit: CGSize = .zero
+
+    /// Holds an offset inside what the photograph can actually offer.
+    public func clampedPan(_ offset: CGSize) -> CGSize {
+        CGSize(
+            width: Swift.min(Swift.max(offset.width, -panLimit.width), panLimit.width),
+            height: Swift.min(Swift.max(offset.height, -panLimit.height), panLimit.height)
+        )
+    }
 
     /// Steps offered by the zoom control, and cycled through by ⌘+ and ⌘−.
     public static let zoomSteps: [Double] = [0.25, 0.5, 1, 2, 4, 8]

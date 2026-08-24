@@ -1835,3 +1835,42 @@ defaults domain: a real session restored when the system asks, ignored when it
 does not, and ignored when its photograph has been deleted.
 
 Testing a predicate is not testing the decision that consults it.
+
+## Panning
+
+Zoom existed without it. Zooming to 4× showed the middle of the photograph and
+nothing else, and the middle is rarely the part being inspected — a zoom you
+cannot move within is a magnifier bolted to the table.
+
+The arithmetic is small and entirely checkable. The limit is the *overhang*:
+half of however much larger the scaled photograph is than the space it is shown
+in, per axis, floored at zero. Panning further would drag the picture off its
+own surround and leave a band of empty ground on the far side, which reads as
+the image having come loose rather than as having been moved.
+
+The floor matters as much as the halving. A wide photograph zoomed just past fit
+overflows sideways while still fitting vertically, so it pans horizontally and
+stays put vertically. Without the floor it would drift up and down, revealing
+nothing, which is worse than not responding.
+
+Two coordinate details, both easy to get silently wrong: a drag is measured in
+points while the composition works in drawable pixels, and Core Image counts
+upward from the bottom while a drag counts downward. The conversion happens in
+one place, at the point the offset enters the renderer.
+
+### Who knows the limit
+
+The editor cannot compute it — the limit depends on the window's size and the
+scale the photograph ended up at, and the editor knows neither. The renderer
+knows both, so it measures the limit and hands it back.
+
+It reports **only when the value changes**. The editor is observable, so setting
+it every frame would invalidate the view every frame and redraw in order to set
+it again. A comparison against the last reported value is what keeps that from
+becoming a loop.
+
+Returning to Fit re-centres. There is nothing off-screen to reach at fit, and
+leaving a stale offset behind means the next zoom starts somewhere nobody put it.
+
+Mutation-tested: the limit not halved, the floor at zero removed, the clamp
+dropped from placement, and the offset never applied. All four caught.

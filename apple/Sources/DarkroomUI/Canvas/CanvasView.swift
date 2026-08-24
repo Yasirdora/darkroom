@@ -19,10 +19,28 @@ public struct CanvasView: NSViewRepresentable {
     /// Zoom factor, or `nil` to fit the window.
     public var zoom: Double?
 
-    public init(image: CIImage?, context: RenderContext, zoom: Double? = nil) {
+    /// How far the photograph is moved from centre, in points.
+    public var pan: CGSize
+
+    /// Reports how far the photograph *can* be panned, in points.
+    ///
+    /// The renderer is the only part that knows the drawable's size and the
+    /// scale the photograph ended up at, so the limit is measured here and
+    /// handed back rather than guessed at by the view.
+    public var onPanLimit: (CGSize) -> Void
+
+    public init(
+        image: CIImage?,
+        context: RenderContext,
+        zoom: Double? = nil,
+        pan: CGSize = .zero,
+        onPanLimit: @escaping (CGSize) -> Void = { _ in }
+    ) {
         self.image = image
         self.context = context
         self.zoom = zoom
+        self.pan = pan
+        self.onPanLimit = onPanLimit
     }
 
     public func makeNSView(context nsContext: Context) -> MTKView {
@@ -50,12 +68,16 @@ public struct CanvasView: NSViewRepresentable {
         view.colorPixelFormat = .rgba16Float
         view.colorspace = RenderContext.outputColorSpace
 
-        nsContext.coordinator.update(image: image, context: self.context, zoom: zoom)
+        nsContext.coordinator.update(
+            image: image, context: self.context, zoom: zoom, pan: pan, onPanLimit: onPanLimit
+        )
         return view
     }
 
     public func updateNSView(_ view: MTKView, context nsContext: Context) {
-        nsContext.coordinator.update(image: image, context: self.context, zoom: zoom)
+        nsContext.coordinator.update(
+            image: image, context: self.context, zoom: zoom, pan: pan, onPanLimit: onPanLimit
+        )
         view.setNeedsDisplay(view.bounds)
     }
 
@@ -66,12 +88,23 @@ public struct CanvasView: NSViewRepresentable {
         private var image: CIImage?
         private var context: RenderContext?
         private var zoom: Double?
+        private var pan: CGSize = .zero
+        private var onPanLimit: (CGSize) -> Void = { _ in }
+        private var reportedLimit: CGSize = .zero
         private var commandQueue: (any MTLCommandQueue)?
 
-        func update(image: CIImage?, context: RenderContext, zoom: Double?) {
+        func update(
+            image: CIImage?,
+            context: RenderContext,
+            zoom: Double?,
+            pan: CGSize,
+            onPanLimit: @escaping (CGSize) -> Void
+        ) {
             self.image = image
             self.context = context
             self.zoom = zoom
+            self.pan = pan
+            self.onPanLimit = onPanLimit
             if commandQueue == nil {
                 commandQueue = context.device?.makeCommandQueue()
             }
@@ -94,12 +127,32 @@ public struct CanvasView: NSViewRepresentable {
             // The composition lives in DarkroomRender so it can be checked; see
             // CanvasComposition for why every pixel of the target must be
             // written on every frame.
+            let scale = view.drawableSize.width / max(view.bounds.width, 1)
             let composited = CanvasComposition.compose(
                 image,
                 in: target,
                 zoom: zoom,
-                contentScale: view.drawableSize.width / max(view.bounds.width, 1)
+                contentScale: scale,
+                // The drag was measured in points; the composition works in
+                // drawable pixels. The vertical sign flips because Core Image
+                // counts upward from the bottom and a drag counts downward.
+                pan: CGSize(width: pan.width * scale, height: -pan.height * scale)
             )
+
+            // Reported only when it changes. The editor is observable, so
+            // setting this every frame would invalidate the view every frame
+            // and redraw to set it again.
+            if let image {
+                let limit = CanvasComposition.panLimit(
+                    for: image, in: target, zoom: zoom, contentScale: scale
+                )
+                let points = CGSize(width: limit.width / scale, height: limit.height / scale)
+                if points != reportedLimit {
+                    reportedLimit = points
+                    let report = onPanLimit
+                    Task { @MainActor in report(points) }
+                }
+            }
 
             context.ciContext.render(
                 composited,
@@ -145,6 +198,9 @@ public struct CanvasArea: View {
     /// has nothing to give away.
     public var occlusion: EdgeInsets
 
+    /// Where the pan stood when the current drag began.
+    @State private var panOrigin: CGSize = .zero
+
     public init(
         editor: Editor,
         rendering: CanvasRendering = .live,
@@ -170,6 +226,7 @@ public struct CanvasArea: View {
                 canvas
                     .padding(editor.zoom == nil ? 24 : 0)
                     .padding(occlusion)
+                    .gesture(panGesture)
             } else {
                 EmptyCanvas().padding(occlusion)
             }
@@ -189,6 +246,37 @@ public struct CanvasArea: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// Dragging the photograph when it is larger than the space it is shown in.
+    ///
+    /// Zooming existed without this, which meant zooming to 4× showed the middle
+    /// of the picture and nothing else — and the middle is rarely the part being
+    /// inspected. A zoom you cannot move within is a magnifier bolted to the
+    /// table.
+    ///
+    /// Only live when there is somewhere to go: at Fit the photograph is
+    /// entirely visible, and a drag that moved nothing would read as the canvas
+    /// ignoring the pointer. `panLimit` returns zero on an axis with no
+    /// overhang, so a wide photograph zoomed just past fit pans sideways and
+    /// stays put vertically, which is correct rather than half-broken.
+    private var panGesture: some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { value in
+                guard editor.zoom != nil else { return }
+                editor.pan = CGSize(
+                    width: panOrigin.width + value.translation.width,
+                    height: panOrigin.height + value.translation.height
+                )
+            }
+            .onEnded { _ in
+                // The renderer clamps what it draws, but the stored offset has
+                // to be clamped too, or a drag far past the edge leaves an
+                // invisible surplus that the next drag has to unwind before
+                // anything moves.
+                editor.pan = editor.clampedPan(editor.pan)
+                panOrigin = editor.pan
+            }
+    }
+
     @ViewBuilder
     private var canvas: some View {
         switch rendering {
@@ -196,7 +284,9 @@ public struct CanvasArea: View {
             CanvasView(
                 image: editor.displayImage,
                 context: editor.renderContext,
-                zoom: editor.zoom
+                zoom: editor.zoom,
+                pan: editor.pan,
+                onPanLimit: { editor.panLimit = $0 }
             )
         case .still:
             if let image = stillImage {

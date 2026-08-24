@@ -34,7 +34,8 @@ public enum CanvasComposition {
         _ image: CIImage?,
         in target: CGRect,
         zoom: Double? = nil,
-        contentScale: CGFloat = 1
+        contentScale: CGFloat = 1,
+        pan: CGSize = .zero
     ) -> CIImage {
         // The ground is generated at full target size and composited *under*
         // the photograph, so no part of the drawable is left unwritten.
@@ -51,40 +52,91 @@ public enum CanvasComposition {
             return ground
         }
 
-        return place(image, in: target, zoom: zoom, contentScale: contentScale)
+        return place(image, in: target, zoom: zoom, contentScale: contentScale, pan: pan)
             .composited(over: ground)
     }
 
-    /// Scales and centres an image within the target.
+    /// How far the photograph may be moved from centre, in target pixels.
+    ///
+    /// Exactly the overhang: half of however much larger the scaled photograph
+    /// is than the space it is shown in, per axis, never negative. Panning
+    /// beyond that would drag the picture off its own surround and leave a band
+    /// of empty ground on the other side, which reads as the image having come
+    /// loose rather than as having been moved.
+    ///
+    /// Zero on an axis where the photograph already fits, so a portrait at fit
+    /// cannot be nudged sideways at all — there is nothing off-screen to bring
+    /// into view, and a control that moves nothing is worse than one that does
+    /// not respond.
+    public static func panLimit(
+        for image: CIImage,
+        in target: CGRect,
+        zoom: Double?,
+        contentScale: CGFloat
+    ) -> CGSize {
+        let extent = image.extent
+        guard extent.width > 0, extent.height > 0, !extent.isInfinite else { return .zero }
+
+        let factor = scaleFactor(for: extent, in: target, zoom: zoom, contentScale: contentScale)
+        return CGSize(
+            width: Swift.max(0, (extent.width * factor - target.width) / 2),
+            height: Swift.max(0, (extent.height * factor - target.height) / 2)
+        )
+    }
+
+    /// Holds a pan offset inside what the photograph can actually offer.
+    public static func clampPan(
+        _ pan: CGSize,
+        for image: CIImage,
+        in target: CGRect,
+        zoom: Double?,
+        contentScale: CGFloat
+    ) -> CGSize {
+        let limit = panLimit(for: image, in: target, zoom: zoom, contentScale: contentScale)
+        return CGSize(
+            width: Swift.min(Swift.max(pan.width, -limit.width), limit.width),
+            height: Swift.min(Swift.max(pan.height, -limit.height), limit.height)
+        )
+    }
+
+    /// The scale the photograph is drawn at.
+    static func scaleFactor(
+        for extent: CGRect,
+        in target: CGRect,
+        zoom: Double?,
+        contentScale: CGFloat
+    ) -> CGFloat {
+        if let zoom { return CGFloat(zoom) * contentScale }
+        // Fit, but never enlarge. Scaling a small photograph up to fill the
+        // window shows its pixels rather than its grade, and a colourist
+        // judging a grade at 400% is judging the resampler.
+        return min(
+            min(target.width / extent.width, target.height / extent.height),
+            contentScale
+        )
+    }
+
+    /// Scales and centres an image within the target, offset by `pan`.
     public static func place(
         _ image: CIImage,
         in target: CGRect,
         zoom: Double?,
-        contentScale: CGFloat
+        contentScale: CGFloat,
+        pan: CGSize = .zero
     ) -> CIImage {
         let extent = image.extent
         guard extent.width > 0, extent.height > 0 else { return image }
 
-        let factor: CGFloat
-        if let zoom {
-            factor = CGFloat(zoom) * contentScale
-        } else {
-            // Fit, but never enlarge. Scaling a small photograph up to fill the
-            // window shows its pixels rather than its grade, and a colourist
-            // judging a grade at 400% is judging the resampler.
-            factor = min(
-                min(target.width / extent.width, target.height / extent.height),
-                contentScale
-            )
-        }
+        let factor = scaleFactor(for: extent, in: target, zoom: zoom, contentScale: contentScale)
+        let offset = clampPan(pan, for: image, in: target, zoom: zoom, contentScale: contentScale)
 
         let scaled = image.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
         let bounds = scaled.extent
 
         return scaled.transformed(
             by: CGAffineTransform(
-                translationX: target.midX - bounds.midX,
-                y: target.midY - bounds.midY
+                translationX: target.midX - bounds.midX + offset.width,
+                y: target.midY - bounds.midY + offset.height
             )
         )
     }

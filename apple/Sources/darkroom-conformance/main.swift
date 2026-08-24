@@ -39,6 +39,7 @@ do {
             + WhiteBalanceChecks.all()
             + SessionChecks.all()
             + UserLookChecks.all()
+            + PanChecks.all()
     )
     print(report.formatted(verbose: verbose))
     exit(report.passed ? 0 : 1)
