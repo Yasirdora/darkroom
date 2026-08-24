@@ -11,6 +11,54 @@ import DarkroomRender
 /// drawable to render into. Going through SwiftUI would mean a round trip to a
 /// `CGImage` and back on every frame, which is the difference between a slider
 /// that tracks the cursor and one that lags behind it.
+/// The Metal view, with the two things AppKit has to answer for.
+///
+/// A scroll is not a gesture SwiftUI offers on macOS, and a cursor over a
+/// custom view is set through cursor rects. Both are ordinary AppKit and both
+/// are wrong to fake: two fingers on a trackpad is how a Mac has moved content
+/// for twenty years, and a hand appearing over something draggable is how a Mac
+/// says it can be dragged.
+public final class PannableMetalView: MTKView {
+
+    /// Scroll deltas, in points. The view reports them; the editor decides
+    /// what they mean.
+    var onScroll: (CGSize) -> Void = { _ in }
+
+    /// Whether there is anywhere to pan, which decides the cursor and whether
+    /// a scroll does anything at all.
+    var isPannable = false {
+        didSet {
+            guard isPannable != oldValue else { return }
+            window?.invalidateCursorRects(for: self)
+        }
+    }
+
+    override public func scrollWheel(with event: NSEvent) {
+        guard isPannable else {
+            super.scrollWheel(with: event)
+            return
+        }
+        // Natural scrolling is already reflected in the sign AppKit reports, so
+        // it is passed through rather than second-guessed — inverting it here
+        // would fight the system preference for exactly this.
+        //
+        // Precise deltas come from a trackpad and are already in points. A
+        // notched wheel reports whole lines, which need scaling or a single
+        // click would move the picture by one pixel.
+        let scale: CGFloat = event.hasPreciseScrollingDeltas ? 1 : 16
+        onScroll(CGSize(
+            width: event.scrollingDeltaX * scale,
+            height: event.scrollingDeltaY * scale
+        ))
+    }
+
+    override public func resetCursorRects() {
+        super.resetCursorRects()
+        guard isPannable else { return }
+        addCursorRect(bounds, cursor: .openHand)
+    }
+}
+
 public struct CanvasView: NSViewRepresentable {
 
     public var image: CIImage?
@@ -21,6 +69,12 @@ public struct CanvasView: NSViewRepresentable {
 
     /// How far the photograph is moved from centre, in points.
     public var pan: CGSize
+
+    /// Two-finger scroll, or a wheel. Deltas in points.
+    public var onScroll: (CGSize) -> Void
+
+    /// Whether there is anywhere to pan — decides the cursor and the scroll.
+    public var isPannable: Bool
 
     /// Reports how far the photograph *can* be panned, in points.
     ///
@@ -34,20 +88,25 @@ public struct CanvasView: NSViewRepresentable {
         context: RenderContext,
         zoom: Double? = nil,
         pan: CGSize = .zero,
+        isPannable: Bool = false,
+        onScroll: @escaping (CGSize) -> Void = { _ in },
         onPanLimit: @escaping (CGSize) -> Void = { _ in }
     ) {
         self.image = image
         self.context = context
         self.zoom = zoom
         self.pan = pan
+        self.isPannable = isPannable
+        self.onScroll = onScroll
         self.onPanLimit = onPanLimit
     }
 
-    public func makeNSView(context nsContext: Context) -> MTKView {
-        let view = MTKView()
+    public func makeNSView(context nsContext: Context) -> PannableMetalView {
+        let view = PannableMetalView()
         view.device = self.context.device ?? MTLCreateSystemDefaultDevice()
         view.framebufferOnly = false
         view.delegate = nsContext.coordinator
+        view.onScroll = onScroll
 
         // Drawn on demand rather than at 60 Hz. Nothing moves unless the grade
         // changes, and an idle editor should not keep a GPU awake.
@@ -68,13 +127,17 @@ public struct CanvasView: NSViewRepresentable {
         view.colorPixelFormat = .rgba16Float
         view.colorspace = RenderContext.outputColorSpace
 
+        view.onScroll = onScroll
+        view.isPannable = isPannable
         nsContext.coordinator.update(
             image: image, context: self.context, zoom: zoom, pan: pan, onPanLimit: onPanLimit
         )
         return view
     }
 
-    public func updateNSView(_ view: MTKView, context nsContext: Context) {
+    public func updateNSView(_ view: PannableMetalView, context nsContext: Context) {
+        view.onScroll = onScroll
+        view.isPannable = isPannable
         nsContext.coordinator.update(
             image: image, context: self.context, zoom: zoom, pan: pan, onPanLimit: onPanLimit
         )
@@ -198,17 +261,30 @@ public struct CanvasArea: View {
     /// has nothing to give away.
     public var occlusion: EdgeInsets
 
+    /// What the controls floating on the canvas keep clear of.
+    ///
+    /// Separate from `occlusion`, because the photograph is allowed under the
+    /// inspector when zoomed and the zoom readout is not. A control that slid
+    /// beneath the panel would be a control you could not reach.
+    public var chromeOcclusion: EdgeInsets
+
     /// Where the pan stood when the current drag began.
     @State private var panOrigin: CGSize = .zero
+
+    /// Whether a drag is in progress, so the closed-hand cursor is pushed once
+    /// and popped once. Pushing per event would leave a stack to unwind.
+    @State private var isDragging = false
 
     public init(
         editor: Editor,
         rendering: CanvasRendering = .live,
-        occlusion: EdgeInsets = EdgeInsets()
+        occlusion: EdgeInsets = EdgeInsets(),
+        chromeOcclusion: EdgeInsets? = nil
     ) {
         self.editor = editor
         self.rendering = rendering
         self.occlusion = occlusion
+        self.chromeOcclusion = chromeOcclusion ?? occlusion
     }
 
     public var body: some View {
@@ -228,19 +304,19 @@ public struct CanvasArea: View {
                     .padding(occlusion)
                     .gesture(panGesture)
             } else {
-                EmptyCanvas().padding(occlusion)
+                EmptyCanvas().padding(chromeOcclusion)
             }
 
             if editor.isComparing {
-                comparisonBadge.padding(occlusion)
+                comparisonBadge.padding(chromeOcclusion)
             }
 
             if editor.hasImage, !editor.state.look.isNone, !editor.isComparing {
-                lookBadge.padding(occlusion)
+                lookBadge.padding(chromeOcclusion)
             }
 
             if editor.hasImage {
-                zoomControl.padding(occlusion)
+                zoomControl.padding(chromeOcclusion)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -262,12 +338,24 @@ public struct CanvasArea: View {
         DragGesture(minimumDistance: 2)
             .onChanged { value in
                 guard editor.zoom != nil else { return }
+                // A closed hand for the duration of the drag. The open hand
+                // over the canvas says the picture *can* be moved; the closed
+                // one says it is being moved, and the difference is what makes
+                // a drag feel like holding something.
+                if !isDragging {
+                    isDragging = true
+                    NSCursor.closedHand.push()
+                }
                 editor.pan = CGSize(
                     width: panOrigin.width + value.translation.width,
                     height: panOrigin.height + value.translation.height
                 )
             }
             .onEnded { _ in
+                if isDragging {
+                    isDragging = false
+                    NSCursor.pop()
+                }
                 // The renderer clamps what it draws, but the stored offset has
                 // to be clamped too, or a drag far past the edge leaves an
                 // invisible surplus that the next drag has to unwind before
@@ -286,6 +374,15 @@ public struct CanvasArea: View {
                 context: editor.renderContext,
                 zoom: editor.zoom,
                 pan: editor.pan,
+                isPannable: editor.canPan,
+                onScroll: { delta in
+                    // Scrolling moves the *content*, so the picture follows the
+                    // fingers rather than the scrollbar would.
+                    editor.pan = editor.clampedPan(CGSize(
+                        width: editor.pan.width + delta.width,
+                        height: editor.pan.height - delta.height
+                    ))
+                },
                 onPanLimit: { editor.panLimit = $0 }
             )
         case .still:

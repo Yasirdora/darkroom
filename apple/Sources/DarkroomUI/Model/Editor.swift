@@ -116,6 +116,15 @@ public final class Editor {
     /// with no overhang.
     public internal(set) var panLimit: CGSize = .zero
 
+    /// Whether the photograph has anywhere to go.
+    ///
+    /// Both conditions matter. Zoomed but already fitting on an axis is not
+    /// pannable on that axis, and a hand cursor over something that cannot move
+    /// is a promise the interface does not keep.
+    public var canPan: Bool {
+        zoom != nil && (panLimit.width > 0.5 || panLimit.height > 0.5)
+    }
+
     /// Holds an offset inside what the photograph can actually offer.
     public func clampedPan(_ offset: CGSize) -> CGSize {
         CGSize(

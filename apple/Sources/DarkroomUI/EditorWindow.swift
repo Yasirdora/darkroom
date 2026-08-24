@@ -20,24 +20,34 @@ public struct EditorWindow: View {
         self.rendering = rendering
     }
 
-    /// What the floating chrome covers, so the canvas can keep clear of it.
+    /// What the floating chrome covers.
     ///
     /// The trailing figure is the inspector's own width plus the gap it floats
     /// in, twice over — once for the gap outside it and once for the gap the
-    /// photograph should keep on the other side, so the picture is not pressed
-    /// against the panel.
-    ///
-    /// The top figure is the line the window buttons and the document controls
-    /// share. The title bar itself is hidden so the canvas reaches the top of
-    /// the window, but both of those still float there, and a photograph must
-    /// not run underneath either.
-    private var canvasOcclusion: EdgeInsets {
+    /// photograph should keep on the other side. The top figure is the line the
+    /// window buttons and the document controls share.
+    private var chromeOcclusion: EdgeInsets {
         EdgeInsets(
             top: CanvasChrome.topInset,
             leading: 0,
             bottom: 0,
             trailing: InspectorGeometry.panelWidth + InspectorGeometry.panelPadding * 2
         )
+    }
+
+    /// What the *photograph* keeps clear of, which is not the same thing.
+    ///
+    /// At Fit it keeps clear of everything. Fit is where the whole frame is
+    /// being judged, and a translucent panel with a photograph behind it takes
+    /// its tint from the very thing being graded — the panel would drift warm as
+    /// the picture did, and colour is judged against everything in view.
+    ///
+    /// Zoomed, it fills the window and runs beneath the chrome. Past Fit nobody
+    /// is judging the whole frame; they are looking at an edge, a grain
+    /// structure, a lash. What that needs is room, and the inspector is a fifth
+    /// of the window's width to give back.
+    private var photographOcclusion: EdgeInsets {
+        editor.zoom == nil ? chromeOcclusion : EdgeInsets()
     }
 
     public var body: some View {
@@ -49,7 +59,12 @@ public struct EditorWindow: View {
         // sits above it. What is *underneath* the inspector is only the neutral
         // surround — see `CanvasArea.occlusion`.
         ZStack(alignment: .trailing) {
-            CanvasArea(editor: editor, rendering: rendering, occlusion: canvasOcclusion)
+            CanvasArea(
+                editor: editor,
+                rendering: rendering,
+                occlusion: photographOcclusion,
+                chromeOcclusion: chromeOcclusion
+            )
                 .overlay {
                     if isTargetedForDrop {
                         RoundedRectangle(cornerRadius: 8)

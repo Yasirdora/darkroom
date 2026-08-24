@@ -1874,3 +1874,49 @@ leaving a stale offset behind means the next zoom starts somewhere nobody put it
 
 Mutation-tested: the limit not halved, the floor at zero removed, the clamp
 dropped from placement, and the offset never applied. All four caught.
+
+## The zoomed photograph fills the window
+
+The occlusion rule now has two halves, because they answer different questions.
+
+**At Fit the photograph keeps clear of the chrome.** Fit is where the whole
+frame is judged, and a translucent panel with a photograph behind it takes its
+tint from the very thing being graded. Only the neutral surround travels under
+the panel there.
+
+**Zoomed, it fills the window and runs beneath the chrome.** Past Fit nobody is
+judging the whole frame; they are looking at an edge, a grain structure, a lash.
+What that needs is room, and the inspector is a fifth of the window's width to
+give back. The concern that kept the photograph out at Fit does not apply to a
+view nobody is colour-judging.
+
+The controls keep their own inset regardless — a zoom readout that slid beneath
+the panel would be one you could not reach. `occlusion` and `chromeOcclusion`
+are separate for exactly that reason.
+
+`OcclusionCheck` asserts **both** halves, and the second is the one worth having:
+an inset left in place by accident would quietly give back a fifth of the window
+and look like nothing at all. Mutation-tested in both directions — keeping the
+photograph clear when zoomed, and letting it under at Fit.
+
+## Two fingers, and a hand
+
+Scrolling and cursors are AppKit's business and were wrong to fake. `MTKView` is
+subclassed for both.
+
+**Scroll.** Two fingers on a trackpad is how a Mac has moved content for twenty
+years. The sign AppKit reports already reflects the natural-scrolling
+preference, so it is passed through rather than second-guessed — inverting it
+here would fight the system setting for precisely this. Precise deltas arrive
+from a trackpad already in points; a notched wheel reports whole lines and needs
+scaling, or one click would move the picture by a pixel.
+
+**Cursor.** An open hand over the canvas says the picture can be moved, a closed
+one says it is being moved, and the difference is what makes a drag feel like
+holding something. The open hand comes from a cursor rect, which AppKit
+maintains for us; the closed hand is pushed once when a drag begins and popped
+once when it ends. Pushing per event would leave a stack to unwind.
+
+Both are gated on `Editor.canPan`, which requires a zoom *and* somewhere to go.
+A hand cursor over something that cannot move is a promise the interface does
+not keep — and an axis that already fits has nothing off-screen to reveal.

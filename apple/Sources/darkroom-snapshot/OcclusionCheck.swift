@@ -4,18 +4,24 @@ import DarkroomCore
 import DarkroomUI
 import Foundation
 
-/// Checks that the photograph never runs under the floating chrome.
+/// Checks where the photograph is allowed to be.
 ///
-/// The canvas deliberately fills the whole window — under the inspector, behind
-/// the window buttons — so the window reads as one surface. Only the neutral
-/// surround is supposed to travel there. If the *photograph* did, two things
-/// would go wrong at once: part of the picture would be hidden behind a panel,
-/// and a translucent panel would take its tint from the image and shift as it
-/// was graded.
+/// The rule has two halves and the check asserts both, because each is a
+/// different mistake.
 ///
-/// The fault would appear at a particular zoom or window shape and not others,
-/// which is exactly the kind that survives being looked at. It is also pure
-/// arithmetic on two rectangles, so it can be asserted instead.
+/// **At Fit the photograph keeps clear of the chrome.** Fit is where the whole
+/// frame is judged, and a translucent panel with a photograph behind it takes
+/// its tint from the very thing being graded — the panel would drift warm as
+/// the picture did. Only the neutral surround travels under the chrome there.
+///
+/// **Zoomed, it fills the window.** Past Fit nobody is judging the whole frame;
+/// they are looking at an edge or a grain structure, and what that needs is
+/// room. Asserting this half matters as much: an inset left in place by
+/// accident would quietly give back a fifth of the window and look like
+/// nothing at all.
+///
+/// Both faults appear at particular zooms and window shapes and not others,
+/// which is the kind that survives being looked at.
 @MainActor
 enum OcclusionCheck {
 
@@ -65,11 +71,23 @@ enum OcclusionCheck {
                 }
 
                 let where_ = "at \(Int(size.width))×\(Int(size.height)), zoom \(zoom.map { "\($0)×" } ?? "fit")"
-                if underPanel > 0 {
-                    failures.append("occlusion: \(underPanel) pixels of photograph under the inspector \(where_)")
-                }
-                if underButtons > 0 {
-                    failures.append("occlusion: \(underButtons) pixels of photograph under the top controls \(where_)")
+
+                if zoom == nil {
+                    // Fit: nothing of the photograph may reach the chrome.
+                    if underPanel > 0 {
+                        failures.append("occlusion: \(underPanel) pixels of photograph under the inspector \(where_)")
+                    }
+                    if underButtons > 0 {
+                        failures.append("occlusion: \(underButtons) pixels of photograph under the top controls \(where_)")
+                    }
+                } else if underPanel == 0 {
+                    // Zoomed: it is supposed to reach it. A photograph large
+                    // enough to overflow that does not reach the panel means an
+                    // inset was left behind, quietly giving away a fifth of the
+                    // window while looking like nothing at all.
+                    failures.append(
+                        "occlusion: the photograph does not reach under the inspector \(where_)"
+                    )
                 }
 
                 // And the opposite error — an inset so large the photograph
