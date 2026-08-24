@@ -35,6 +35,13 @@ public struct DarkroomScene: Scene {
             }
             .keyboardShortcut("o")
 
+            Button("Close Photograph") { editor.close() }
+                // ⌘W, where closing a document lives on every Mac. The window
+                // itself stays: this app has one window and closing it would
+                // leave nothing to come back to.
+                .keyboardShortcut("w")
+                .disabled(!editor.hasImage)
+
             // Where a photograph you had open yesterday is expected to be.
             Menu("Open Recent") {
                 if editor.recentFiles.isEmpty {

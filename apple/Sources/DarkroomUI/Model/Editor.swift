@@ -186,6 +186,34 @@ public final class Editor {
     /// File types the open panel should offer.
     public var readableTypes: [UTType] { ImageLoader.supportedTypes }
 
+    /// Closes the photograph, returning the app to its empty state.
+    ///
+    /// There was no way to do this, which is what made the session restore feel
+    /// like a trap rather than a convenience: once a photograph was open it
+    /// could not be put down, and quitting brought it back. Restoring your work
+    /// is only hospitable if you can also decline it.
+    ///
+    /// Clearing the source clears the stored session too — `save` removes the
+    /// file when there is nothing open — so the next launch starts empty.
+    public func close() {
+        guard sourceImage != nil else { return }
+
+        sourceImage = nil
+        sourceURL = nil
+        pixelSize = .zero
+        isRAW = false
+        cameraDescription = nil
+        state = EditState()
+        undoStack.removeAll()
+        redoStack.removeAll()
+        isComparing = false
+        zoom = nil
+        histogram = .empty
+        vectorscope = .empty
+
+        SessionStore.save(sourceURL: nil, state: state)
+    }
+
     public func open(_ url: URL) {
         do {
             let loaded = try ImageLoader.load(contentsOf: url)

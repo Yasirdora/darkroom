@@ -69,13 +69,49 @@ public enum SessionStore {
         }
     }
 
+    /// Whether the system wants an app's state restored when it relaunches.
+    ///
+    /// macOS already has a preference for this exact question — *Close windows
+    /// when quitting an application*, in Desktop & Dock — and ticking it sets
+    /// `NSQuitAlwaysKeepsWindows` to false. An app that restores anyway is
+    /// overriding a decision the person already made, somewhere they cannot see
+    /// it being overridden.
+    ///
+    /// Absent means the key was never written, which is the factory setting:
+    /// restore. `bool(forKey:)` alone would read that absence as *false* and
+    /// silently invert the default, so the existence check is load-bearing.
+    public static func systemRestoresState(_ defaults: UserDefaults = .standard) -> Bool {
+        guard defaults.object(forKey: quitKeepsWindowsKey) != nil else { return true }
+        return defaults.bool(forKey: quitKeepsWindowsKey)
+    }
+
+    /// The system preference key. Public so a check can set it in a scratch
+    /// domain rather than writing to the real one.
+    public static let quitKeepsWindowsKey = "NSQuitAlwaysKeepsWindows"
+
     /// The saved session, or `nil` when there is none worth restoring.
     ///
-    /// Validates only what is cheap to validate: that the file decodes and
-    /// the photograph still exists. A corrupt store is treated as absent —
-    /// losing autosave is annoying; crashing on it is unacceptable.
+    /// Validates only what is cheap to validate: that the system wants state
+    /// restored at all, that the file decodes, and that the photograph still
+    /// exists. A corrupt store is treated as absent — losing autosave is
+    /// annoying; crashing on it is unacceptable.
     public static func load() -> Session? {
-        guard let fileURL = defaultFileURL,
+        guard let fileURL = defaultFileURL else { return nil }
+        return session(at: fileURL)
+    }
+
+    /// The policy, separated from the file it usually reads.
+    ///
+    /// `load()` is a one-line wrapper over this so the rules — obey the system
+    /// preference, ignore a session whose photograph has gone — can be checked
+    /// against a temporary file and a scratch defaults domain instead of the
+    /// user's real ones. A rule that can only be exercised by launching the app
+    /// is a rule nothing is guarding.
+    public static func session(
+        at fileURL: URL,
+        defaults: UserDefaults = .standard
+    ) -> Session? {
+        guard systemRestoresState(defaults),
               let session = load(from: fileURL),
               FileManager.default.fileExists(atPath: session.sourcePath)
         else { return nil }

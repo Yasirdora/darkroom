@@ -1795,3 +1795,43 @@ Mutation-tested by restoring the weights in each path separately, and by
 applying the master per-channel instead of as a luminance offset. All three
 caught, each by a different suite — the CPU by the vector checks, the GPU by the
 render checks.
+
+## Restoring the last session, and being able to decline it
+
+Reported: quitting and relaunching reopens the previous photograph with its
+grade still applied.
+
+That is deliberate — a grading tool that forgets its work on quit is a demo —
+but two things about it were wrong.
+
+**It ignored the system preference for exactly this question.** macOS has
+*Close windows when quitting an application* in Desktop & Dock, which sets
+`NSQuitAlwaysKeepsWindows` to false. Restoring anyway overrides a decision
+someone already made, somewhere they cannot see it being overridden.
+`SessionStore.systemRestoresState` now consults it.
+
+The subtlety worth recording: `bool(forKey:)` returns false for a key that was
+never written, and the factory setting is *unwritten*. Reading it directly would
+have treated "never touched the setting" as "do not restore" and inverted the
+behaviour for almost everybody. The existence check is the whole fix.
+
+**And there was no way to close a photograph.** No ⌘W, no Close, nothing. Once
+one was open it could not be put down, and quitting brought it back — which is
+what turned a convenience into feeling stuck. Restoring your work is only
+hospitable if you can also decline it. `Close Photograph` (⌘W) clears the
+photograph and the stored session, so the next launch starts empty.
+
+### A check that proved the wrong half
+
+The first version tested `systemRestoresState` on its own: unset restores, false
+does not, true does. All three passed, and **removing the call from the restore
+path entirely still passed** — because nothing exercised the path, only the
+predicate.
+
+`load()` reads the user's real file and real defaults, so it could not be
+checked directly. It is now a one-line wrapper over `session(at:defaults:)`,
+which takes both, and the check drives that with a temporary file and a scratch
+defaults domain: a real session restored when the system asks, ignored when it
+does not, and ignored when its photograph has been deleted.
+
+Testing a predicate is not testing the decision that consults it.

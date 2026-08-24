@@ -12,7 +12,8 @@ import DarkroomCore
 public enum SessionChecks {
 
     public static func all() throws -> [CheckResult] {
-        [roundTripCheck(), determinismCheck(), importedLUTCheck(), fileCheck()]
+        [roundTripCheck(), determinismCheck(), importedLUTCheck(), fileCheck(),
+         restorePreferenceCheck()]
     }
 
     /// A state with every field exercised: adjustments, curves with handles,
@@ -131,6 +132,85 @@ public enum SessionChecks {
             !FileManager.default.fileExists(atPath: file.path),
             "clearing the session left the file in place"
         )
+        return check.finish()
+    }
+
+    /// Restoring the last session obeys the system preference for it.
+    ///
+    /// macOS already asks this question — *Close windows when quitting an
+    /// application* — and an app that reopens the last photograph regardless is
+    /// overriding a decision someone made in a place they cannot see it being
+    /// overridden. Reported as "it still loads the old image", which is what
+    /// that override feels like from the outside.
+    static func restorePreferenceCheck() -> CheckResult {
+        var check = Checker(suite: "Session", name: "restoring obeys the system preference")
+
+        let suiteName = "darkroom.session.check"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            check.expect(false, "could not open a scratch defaults domain")
+            return check.finish()
+        }
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Absent is the factory setting, and the factory setting is to restore.
+        //
+        // This is the case worth guarding: `bool(forKey:)` returns false for a
+        // key that was never written, so reading it directly would treat the
+        // default as "do not restore" and invert the behaviour for everyone who
+        // has never touched the setting.
+        defaults.removeObject(forKey: SessionStore.quitKeepsWindowsKey)
+        check.expect(
+            SessionStore.systemRestoresState(defaults),
+            "an unset preference should restore, which is the system default"
+        )
+
+        defaults.set(false, forKey: SessionStore.quitKeepsWindowsKey)
+        check.expect(
+            !SessionStore.systemRestoresState(defaults),
+            "asking for windows to close on quit should stop the restore"
+        )
+
+        defaults.set(true, forKey: SessionStore.quitKeepsWindowsKey)
+        check.expect(
+            SessionStore.systemRestoresState(defaults),
+            "asking for windows to be kept should restore"
+        )
+
+        // And that the restore path actually consults it. Testing the
+        // preference alone proves nothing about whether anything reads it —
+        // removing the call from `session(at:)` passed a check that only
+        // exercised the predicate.
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "darkroom-session-check", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        // A photograph that exists, so only the preference decides.
+        let photograph = directory.appending(path: "photo.bin")
+        try? Data([0]).write(to: photograph)
+        let file = directory.appending(path: "session.json")
+        SessionStore.save(SessionStore.Session(sourcePath: photograph.path, state: EditState()), to: file)
+
+        defaults.set(true, forKey: SessionStore.quitKeepsWindowsKey)
+        check.expect(
+            SessionStore.session(at: file, defaults: defaults) != nil,
+            "a saved session should be restored when the system asks for it"
+        )
+
+        defaults.set(false, forKey: SessionStore.quitKeepsWindowsKey)
+        check.expect(
+            SessionStore.session(at: file, defaults: defaults) == nil,
+            "a saved session should be ignored when windows close on quit"
+        )
+
+        // And a session whose photograph has gone is not resurrected.
+        defaults.set(true, forKey: SessionStore.quitKeepsWindowsKey)
+        try? FileManager.default.removeItem(at: photograph)
+        check.expect(
+            SessionStore.session(at: file, defaults: defaults) == nil,
+            "a session pointing at a missing photograph should be ignored"
+        )
+
         return check.finish()
     }
 }
