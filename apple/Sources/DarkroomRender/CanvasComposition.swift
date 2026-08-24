@@ -36,7 +36,8 @@ public enum CanvasComposition {
         zoom: Double? = nil,
         contentScale: CGFloat = 1,
         pan: CGSize = .zero,
-        freedom: CGSize = .zero
+        freedom: CGSize = .zero,
+        margin: CGFloat = 0
     ) -> CIImage {
         // The ground is generated at full target size and composited *under*
         // the photograph, so no part of the drawable is left unwritten.
@@ -54,7 +55,8 @@ public enum CanvasComposition {
         }
 
         return place(
-            image, in: target, zoom: zoom, contentScale: contentScale, pan: pan, freedom: freedom
+            image, in: target, zoom: zoom, contentScale: contentScale,
+            pan: pan, freedom: freedom, margin: margin
         ).composited(over: ground)
     }
 
@@ -94,10 +96,12 @@ public enum CanvasComposition {
         in target: CGRect,
         zoom: Double?,
         contentScale: CGFloat,
-        freedom: CGSize = .zero
+        freedom: CGSize = .zero,
+        margin: CGFloat = 0
     ) -> CGSize {
         let bounds = panBounds(
-            for: image, in: target, zoom: zoom, contentScale: contentScale, freedom: freedom
+            for: image, in: target, zoom: zoom, contentScale: contentScale,
+            freedom: freedom, margin: margin
         )
         return CGSize(
             width: Swift.max(bounds.maximum.width, -bounds.minimum.width),
@@ -112,12 +116,21 @@ public enum CanvasComposition {
     /// the right and the controls along the top — hide content that is revealed
     /// by moving the photograph in the *negative* direction, left and down. The
     /// opposite direction gets the overhang and nothing else.
+    /// - Parameters:
+    ///   - freedom: Extra travel toward the chrome, in target pixels, applied
+    ///     only in the direction that uncovers something.
+    ///   - margin: Breathing room in *every* direction. Two different ideas
+    ///     kept apart on purpose: `freedom` exists so nothing is unreachable,
+    ///     `margin` exists so the picture is not pinned flush against its own
+    ///     surround. Folding them together gave a band of empty ground down one
+    ///     side and none anywhere else.
     public static func panBounds(
         for image: CIImage,
         in target: CGRect,
         zoom: Double?,
         contentScale: CGFloat,
-        freedom: CGSize = .zero
+        freedom: CGSize = .zero,
+        margin: CGFloat = 0
     ) -> (minimum: CGSize, maximum: CGSize) {
         let extent = image.extent
         guard extent.width > 0, extent.height > 0, !extent.isInfinite else {
@@ -129,12 +142,13 @@ public enum CanvasComposition {
             width: Swift.max(0, (extent.width * factor - target.width) / 2),
             height: Swift.max(0, (extent.height * factor - target.height) / 2)
         )
+        let room = Swift.max(0, margin)
         return (
             minimum: CGSize(
-                width: -(overhang.width + Swift.max(0, freedom.width)),
-                height: -(overhang.height + Swift.max(0, freedom.height))
+                width: -(overhang.width + Swift.max(0, freedom.width) + room),
+                height: -(overhang.height + Swift.max(0, freedom.height) + room)
             ),
-            maximum: CGSize(width: overhang.width, height: overhang.height)
+            maximum: CGSize(width: overhang.width + room, height: overhang.height + room)
         )
     }
 
@@ -145,10 +159,12 @@ public enum CanvasComposition {
         in target: CGRect,
         zoom: Double?,
         contentScale: CGFloat,
-        freedom: CGSize = .zero
+        freedom: CGSize = .zero,
+        margin: CGFloat = 0
     ) -> CGSize {
         let bounds = panBounds(
-            for: image, in: target, zoom: zoom, contentScale: contentScale, freedom: freedom
+            for: image, in: target, zoom: zoom, contentScale: contentScale,
+            freedom: freedom, margin: margin
         )
         return CGSize(
             width: Swift.min(Swift.max(pan.width, bounds.minimum.width), bounds.maximum.width),
@@ -180,14 +196,16 @@ public enum CanvasComposition {
         zoom: Double?,
         contentScale: CGFloat,
         pan: CGSize = .zero,
-        freedom: CGSize = .zero
+        freedom: CGSize = .zero,
+        margin: CGFloat = 0
     ) -> CIImage {
         let extent = image.extent
         guard extent.width > 0, extent.height > 0 else { return image }
 
         let factor = scaleFactor(for: extent, in: target, zoom: zoom, contentScale: contentScale)
         let offset = clampPan(
-            pan, for: image, in: target, zoom: zoom, contentScale: contentScale, freedom: freedom
+            pan, for: image, in: target, zoom: zoom, contentScale: contentScale,
+            freedom: freedom, margin: margin
         )
 
         let scaled = image.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
@@ -200,4 +218,16 @@ public enum CanvasComposition {
             )
         )
     }
+}
+
+
+public extension CanvasComposition {
+
+    /// Breathing room the photograph keeps in every direction once a zoom has
+    /// been chosen.
+    ///
+    /// The same figure the canvas is inset by at Fit, so a picture nudged to
+    /// its stop sits where a fitted one would rather than flush against the
+    /// window. Small enough that the surround never becomes the subject.
+    static let panMargin: CGFloat = 24
 }

@@ -71,7 +71,11 @@ public struct EditorWindow: View {
                 // which is a picture you can see the edge of and never look at.
                 panFreedom: editor.zoom == nil
                     ? .zero
-                    : CGSize(width: chromeOcclusion.trailing, height: chromeOcclusion.top)
+                    : CGSize(width: chromeOcclusion.trailing, height: chromeOcclusion.top),
+                // And a little room on every side, so a photograph nudged to
+                // its stop sits where a fitted one would rather than flush
+                // against the window edge.
+                panMargin: editor.zoom == nil ? 0 : CanvasComposition.panMargin
             )
                 .overlay {
                     if isTargetedForDrop {

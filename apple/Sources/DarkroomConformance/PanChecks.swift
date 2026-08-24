@@ -222,6 +222,35 @@ public enum PanChecks {
             "upward travel was granted, which only opens a gap at the bottom"
         )
 
+        // The margin is separate from the freedom, and reaches every side.
+        //
+        // Freedom exists so nothing is unreachable; margin exists so the
+        // picture is not pinned flush against its own surround. Folding them
+        // together gave a wide band of empty ground down one side and none
+        // anywhere else, which is what was reported twice.
+        let roomy = CanvasComposition.panBounds(
+            for: modest, in: window, zoom: 0.5, contentScale: 1,
+            freedom: chrome, margin: 24
+        )
+        check.expectWithin(
+            roomy.maximum.width, 24, codes: 0.001,
+            "no breathing room on the side the chrome does not cover"
+        )
+        check.expectWithin(
+            roomy.maximum.height, 24, codes: 0.001,
+            "no breathing room below"
+        )
+        check.expectWithin(
+            roomy.minimum.width, -(chrome.width + 24), codes: 0.001,
+            "the margin did not add to the escaping side as well"
+        )
+
+        // With no margin, nothing changes — the default has to stay inert.
+        let tight = CanvasComposition.panBounds(
+            for: modest, in: window, zoom: 0.5, contentScale: 1, freedom: chrome, margin: 0
+        )
+        check.expectWithin(tight.maximum.width, 0, codes: 0.001, "zero margin still granted room")
+
         // A photograph with overhang keeps it symmetrically, and gains the
         // freedom on one side only.
         let wide = CIImage(color: .gray).cropped(to: CGRect(x: 0, y: 0, width: 4000, height: 700))

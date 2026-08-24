@@ -1950,6 +1950,25 @@ and the vertical axis flips on the way from the composition to the drag: what is
 the composition's minimum is the drag's maximum. That conversion happens once,
 where the renderer reports the bounds.
 
+### Two ideas that were one, and should not have been
+
+Making the freedom one-directional fixed the band of empty ground on the left
+and left the picture pinned flush against the window on the sides the chrome
+does not cover. Both complaints are about the same figure doing two jobs.
+
+They are separate now. **Freedom** exists so nothing is unreachable, and applies
+only toward the chrome it escapes. **Margin** exists so the photograph is not
+pressed against its own surround, and applies in every direction. The margin is
+24 points — the same figure the canvas is inset by at Fit, so a picture nudged
+to its stop sits where a fitted one would.
+
+| direction | travel beyond the overhang |
+|---|---|
+| left, escaping the inspector | 314 + 24 |
+| right | 24 |
+| down, escaping the top bar | 46 + 24 |
+| up | 24 |
+
 ### A fix aimed at the wrong thing
 
 The first attempt made the photograph go full-bleed only when it was larger than
