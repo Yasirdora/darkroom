@@ -1939,6 +1939,17 @@ be dragged out from under it, and nothing further. It *extends* the overhang
 rather than replacing it, so a photograph that already overflows keeps
 everything it had.
 
+**In one direction only.** The first version applied it symmetrically, and the
+result was a band of empty surround down the left-hand side: the inspector is on
+the *right*, so escaping it means moving the photograph left, and the same
+travel rightward buys nothing at all. The top bar is the same story vertically —
+content under it is revealed by moving the picture down, never up.
+
+So the pan is a *range* rather than a limit, asymmetric because the chrome is,
+and the vertical axis flips on the way from the composition to the drag: what is
+the composition's minimum is the drag's maximum. That conversion happens once,
+where the renderer reports the bounds.
+
 ### A fix aimed at the wrong thing
 
 The first attempt made the photograph go full-bleed only when it was larger than

@@ -79,12 +79,12 @@ public struct CanvasView: NSViewRepresentable {
     /// Extra travel beyond the overhang, in points — what the chrome covers.
     public var panFreedom: CGSize
 
-    /// Reports how far the photograph *can* be panned, in points.
+    /// Reports the range the photograph may be panned over, in points.
     ///
     /// The renderer is the only part that knows the drawable's size and the
     /// scale the photograph ended up at, so the limit is measured here and
     /// handed back rather than guessed at by the view.
-    public var onPanLimit: (CGSize) -> Void
+    public var onPanBounds: (CGSize, CGSize) -> Void
 
     public init(
         image: CIImage?,
@@ -94,7 +94,7 @@ public struct CanvasView: NSViewRepresentable {
         isPannable: Bool = false,
         panFreedom: CGSize = .zero,
         onScroll: @escaping (CGSize) -> Void = { _ in },
-        onPanLimit: @escaping (CGSize) -> Void = { _ in }
+        onPanBounds: @escaping (CGSize, CGSize) -> Void = { _, _ in }
     ) {
         self.image = image
         self.context = context
@@ -103,7 +103,7 @@ public struct CanvasView: NSViewRepresentable {
         self.isPannable = isPannable
         self.panFreedom = panFreedom
         self.onScroll = onScroll
-        self.onPanLimit = onPanLimit
+        self.onPanBounds = onPanBounds
     }
 
     public func makeNSView(context nsContext: Context) -> PannableMetalView {
@@ -136,7 +136,7 @@ public struct CanvasView: NSViewRepresentable {
         view.isPannable = isPannable
         nsContext.coordinator.update(
             image: image, context: self.context, zoom: zoom, pan: pan,
-            freedom: panFreedom, onPanLimit: onPanLimit
+            freedom: panFreedom, onPanBounds: onPanBounds
         )
         return view
     }
@@ -146,7 +146,7 @@ public struct CanvasView: NSViewRepresentable {
         view.isPannable = isPannable
         nsContext.coordinator.update(
             image: image, context: self.context, zoom: zoom, pan: pan,
-            freedom: panFreedom, onPanLimit: onPanLimit
+            freedom: panFreedom, onPanBounds: onPanBounds
         )
         view.setNeedsDisplay(view.bounds)
     }
@@ -160,8 +160,8 @@ public struct CanvasView: NSViewRepresentable {
         private var zoom: Double?
         private var pan: CGSize = .zero
         private var freedom: CGSize = .zero
-        private var onPanLimit: (CGSize) -> Void = { _ in }
-        private var reportedLimit: CGSize = .zero
+        private var onPanBounds: (CGSize, CGSize) -> Void = { _, _ in }
+        private var reportedBounds: (CGSize, CGSize) = (.zero, .zero)
         private var commandQueue: (any MTLCommandQueue)?
 
         func update(
@@ -170,14 +170,14 @@ public struct CanvasView: NSViewRepresentable {
             zoom: Double?,
             pan: CGSize,
             freedom: CGSize,
-            onPanLimit: @escaping (CGSize) -> Void
+            onPanBounds: @escaping (CGSize, CGSize) -> Void
         ) {
             self.image = image
             self.context = context
             self.zoom = zoom
             self.pan = pan
             self.freedom = freedom
-            self.onPanLimit = onPanLimit
+            self.onPanBounds = onPanBounds
             if commandQueue == nil {
                 commandQueue = context.device?.makeCommandQueue()
             }
@@ -218,15 +218,25 @@ public struct CanvasView: NSViewRepresentable {
             // setting this every frame would invalidate the view every frame
             // and redraw to set it again.
             if let image {
-                let limit = CanvasComposition.panLimit(
+                let bounds = CanvasComposition.panBounds(
                     for: image, in: target, zoom: zoom, contentScale: scale,
                     freedom: CGSize(width: freedom.width * scale, height: freedom.height * scale)
                 )
-                let points = CGSize(width: limit.width / scale, height: limit.height / scale)
-                if points != reportedLimit {
-                    reportedLimit = points
-                    let report = onPanLimit
-                    Task { @MainActor in report(points) }
+                // Into points, and into drag coordinates — the vertical axis
+                // flips, so the composition's minimum becomes the drag's
+                // maximum and the other way round.
+                let minimum = CGSize(
+                    width: bounds.minimum.width / scale,
+                    height: -bounds.maximum.height / scale
+                )
+                let maximum = CGSize(
+                    width: bounds.maximum.width / scale,
+                    height: -bounds.minimum.height / scale
+                )
+                if minimum != reportedBounds.0 || maximum != reportedBounds.1 {
+                    reportedBounds = (minimum, maximum)
+                    let report = onPanBounds
+                    Task { @MainActor in report(minimum, maximum) }
                 }
             }
 
@@ -403,7 +413,10 @@ public struct CanvasArea: View {
                         height: editor.pan.height - delta.height
                     ))
                 },
-                onPanLimit: { editor.panLimit = $0 }
+                onPanBounds: { minimum, maximum in
+                    editor.panMinimum = minimum
+                    editor.panMaximum = maximum
+                }
             )
         case .still:
             if let image = stillImage {

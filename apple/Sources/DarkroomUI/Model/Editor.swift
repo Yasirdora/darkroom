@@ -109,12 +109,17 @@ public final class Editor {
     /// window's size, which the editor does not know.
     public var pan: CGSize = .zero
 
-    /// How far the photograph can be panned, in points.
+    /// The range the pan may take, in points, in drag coordinates: positive x
+    /// moves the photograph right, positive y moves it down.
     ///
     /// Measured by the renderer, which is the only part that knows both the
-    /// window's size and the scale the photograph is drawn at. Zero on an axis
-    /// with no overhang.
-    public internal(set) var panLimit: CGSize = .zero
+    /// window's size and the scale the photograph ended up at.
+    ///
+    /// Asymmetric, because the chrome is. The inspector is on the right, so the
+    /// photograph gets extra travel *leftward* to escape it and none rightward
+    /// — allowing both merely opens a band of empty surround on the left.
+    public internal(set) var panMinimum: CGSize = .zero
+    public internal(set) var panMaximum: CGSize = .zero
 
     /// Whether the photograph has anywhere to go.
     ///
@@ -122,14 +127,16 @@ public final class Editor {
     /// pannable on that axis, and a hand cursor over something that cannot move
     /// is a promise the interface does not keep.
     public var canPan: Bool {
-        zoom != nil && (panLimit.width > 0.5 || panLimit.height > 0.5)
+        guard zoom != nil else { return false }
+        return panMaximum.width - panMinimum.width > 1
+            || panMaximum.height - panMinimum.height > 1
     }
 
     /// Holds an offset inside what the photograph can actually offer.
     public func clampedPan(_ offset: CGSize) -> CGSize {
         CGSize(
-            width: Swift.min(Swift.max(offset.width, -panLimit.width), panLimit.width),
-            height: Swift.min(Swift.max(offset.height, -panLimit.height), panLimit.height)
+            width: Swift.min(Swift.max(offset.width, panMinimum.width), panMaximum.width),
+            height: Swift.min(Swift.max(offset.height, panMinimum.height), panMaximum.height)
         )
     }
 

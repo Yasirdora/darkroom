@@ -82,6 +82,13 @@ public enum CanvasComposition {
     ///   Passing the chrome's own insets makes anything the chrome covers
     ///   reachable, and nothing more: the picture can be pulled clear and no
     ///   further.
+    ///
+    ///   Applied in **one direction only**, because the chrome is on one side.
+    ///   The inspector is on the right, so escaping it means moving the
+    ///   photograph *left*; allowing the same travel rightward buys nothing and
+    ///   opens a band of empty surround on the left, which is what a symmetric
+    ///   version of this did. The top bar is the same story vertically: content
+    ///   under it is revealed by moving the picture down, never up.
     public static func panLimit(
         for image: CIImage,
         in target: CGRect,
@@ -89,13 +96,45 @@ public enum CanvasComposition {
         contentScale: CGFloat,
         freedom: CGSize = .zero
     ) -> CGSize {
+        let bounds = panBounds(
+            for: image, in: target, zoom: zoom, contentScale: contentScale, freedom: freedom
+        )
+        return CGSize(
+            width: Swift.max(bounds.maximum.width, -bounds.minimum.width),
+            height: Swift.max(bounds.maximum.height, -bounds.minimum.height)
+        )
+    }
+
+    /// The range the pan may take, in target pixels, in the composition's own
+    /// coordinates: positive x moves the photograph right, positive y up.
+    ///
+    /// Asymmetric, because the chrome is. Both pieces of it — the inspector on
+    /// the right and the controls along the top — hide content that is revealed
+    /// by moving the photograph in the *negative* direction, left and down. The
+    /// opposite direction gets the overhang and nothing else.
+    public static func panBounds(
+        for image: CIImage,
+        in target: CGRect,
+        zoom: Double?,
+        contentScale: CGFloat,
+        freedom: CGSize = .zero
+    ) -> (minimum: CGSize, maximum: CGSize) {
         let extent = image.extent
-        guard extent.width > 0, extent.height > 0, !extent.isInfinite else { return .zero }
+        guard extent.width > 0, extent.height > 0, !extent.isInfinite else {
+            return (.zero, .zero)
+        }
 
         let factor = scaleFactor(for: extent, in: target, zoom: zoom, contentScale: contentScale)
-        return CGSize(
-            width: Swift.max(0, (extent.width * factor - target.width) / 2) + Swift.max(0, freedom.width),
-            height: Swift.max(0, (extent.height * factor - target.height) / 2) + Swift.max(0, freedom.height)
+        let overhang = CGSize(
+            width: Swift.max(0, (extent.width * factor - target.width) / 2),
+            height: Swift.max(0, (extent.height * factor - target.height) / 2)
+        )
+        return (
+            minimum: CGSize(
+                width: -(overhang.width + Swift.max(0, freedom.width)),
+                height: -(overhang.height + Swift.max(0, freedom.height))
+            ),
+            maximum: CGSize(width: overhang.width, height: overhang.height)
         )
     }
 
@@ -108,12 +147,12 @@ public enum CanvasComposition {
         contentScale: CGFloat,
         freedom: CGSize = .zero
     ) -> CGSize {
-        let limit = panLimit(
+        let bounds = panBounds(
             for: image, in: target, zoom: zoom, contentScale: contentScale, freedom: freedom
         )
         return CGSize(
-            width: Swift.min(Swift.max(pan.width, -limit.width), limit.width),
-            height: Swift.min(Swift.max(pan.height, -limit.height), limit.height)
+            width: Swift.min(Swift.max(pan.width, bounds.minimum.width), bounds.maximum.width),
+            height: Swift.min(Swift.max(pan.height, bounds.minimum.height), bounds.maximum.height)
         )
     }
 

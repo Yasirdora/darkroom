@@ -195,6 +195,46 @@ public enum PanChecks {
             "the top controls' height was not reachable"
         )
 
+        // And only in the direction that escapes it.
+        //
+        // The inspector is on the right, so the photograph needs to travel
+        // *left* to come out from under it. Allowing the same travel rightward
+        // buys nothing and opens a band of empty surround on the left — which
+        // is exactly what a symmetric version of this produced, and what was
+        // reported.
+        let bounds = CanvasComposition.panBounds(
+            for: modest, in: window, zoom: 0.5, contentScale: 1, freedom: chrome
+        )
+        check.expectWithin(
+            bounds.minimum.width, -chrome.width, codes: 0.001,
+            "leftward travel did not cover the panel"
+        )
+        check.expectWithin(
+            bounds.maximum.width, 0, codes: 0.001,
+            "rightward travel was granted, which only opens a gap on the left"
+        )
+        check.expectWithin(
+            bounds.minimum.height, -chrome.height, codes: 0.001,
+            "downward travel did not cover the top controls"
+        )
+        check.expectWithin(
+            bounds.maximum.height, 0, codes: 0.001,
+            "upward travel was granted, which only opens a gap at the bottom"
+        )
+
+        // A photograph with overhang keeps it symmetrically, and gains the
+        // freedom on one side only.
+        let wide = CIImage(color: .gray).cropped(to: CGRect(x: 0, y: 0, width: 4000, height: 700))
+        let mixed = CanvasComposition.panBounds(
+            for: wide, in: window, zoom: 1, contentScale: 1, freedom: chrome
+        )
+        let overhangX = (4000 - window.width) / 2
+        check.expectWithin(mixed.maximum.width, overhangX, codes: 0.001, "the overhang was not kept")
+        check.expectWithin(
+            mixed.minimum.width, -(overhangX + chrome.width), codes: 0.001,
+            "the freedom did not extend the overhang on the escaping side"
+        )
+
         // Freedom adds to the overhang rather than replacing it, so a
         // photograph that already overflows keeps everything it had.
         let large = CIImage(color: .gray).cropped(to: CGRect(x: 0, y: 0, width: 4000, height: 3000))
