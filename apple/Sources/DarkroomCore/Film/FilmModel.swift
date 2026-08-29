@@ -22,6 +22,17 @@ public enum FilmModel {
     /// stages, so a strong look still reads on skin — just at 40% strength.
     static let skinPreserveBlend = 0.4
 
+    /// How far skin is allowed to drift in hue before the guard pulls it back.
+    static let skinHueLimit = 15.0
+
+    /// Signed shortest-arc hue difference, -180…180.
+    static func signedHueDelta(_ a: Double, _ b: Double) -> Double {
+        var delta = (a - b).truncatingRemainder(dividingBy: 360)
+        if delta > 180 { delta -= 360 }
+        if delta < -180 { delta += 360 }
+        return delta
+    }
+
     // MARK: - Public entry point
 
     /// Renders one 8-bit pixel through a stock's full chain.
@@ -59,14 +70,18 @@ public enum FilmModel {
         // moved it — but tests the *processed* pixel inside the saturation
         // stage below. That asymmetry is deliberate in the original and is
         // preserved; see Docs/PortingNotes.md.
-        let preserveSkin = stock.preservesSkinTones && isSkinTone(r, g, b)
+        // Feathered, not boolean: a hard test flips between neighbouring pixels
+        // wherever one crosses an edge of the window, which is a step in a
+        // gradient and a blotchy contour on a face.
+        let timingSkin = stock.preservesSkinTones ? skinToneWeight(r, g, b) : 0
 
         let beforeTiming = (r: cr, g: cg, b: cb)
         (cr, cg, cb) = applyTiming(cr, cg, cb, stock)
-        if preserveSkin {
-            cr = JSMath.lerp(beforeTiming.r, cr, skinPreserveBlend)
-            cg = JSMath.lerp(beforeTiming.g, cg, skinPreserveBlend)
-            cb = JSMath.lerp(beforeTiming.b, cb, skinPreserveBlend)
+        if timingSkin > 0 {
+            let keep = 1 - (1 - skinPreserveBlend) * timingSkin
+            cr = JSMath.lerp(beforeTiming.r, cr, keep)
+            cg = JSMath.lerp(beforeTiming.g, cg, keep)
+            cb = JSMath.lerp(beforeTiming.b, cb, keep)
         }
 
         (cr, cg, cb) = applySaturation(
@@ -144,10 +159,28 @@ public enum FilmModel {
         }
 
         if x > shoulder {
-            // Exponential approach to the ceiling — asymptotic, so highlights
-            // compress without ever hard-clipping.
             let excess = (x - shoulder) / max(1 - shoulder, 0.001)
-            x = shoulder + (1 - shoulder) * (1 - exp(-excess * (1.6 + shoulderStrength * 2.8)))
+            let k = 1.6 + shoulderStrength * 2.8
+            // Was `1 - exp(-k · excess)`, which leaves the shoulder with slope
+            // k — about 2.6 on a default stock, against 1 immediately below it.
+            // Highlights therefore *expanded* at the onset and only began
+            // compressing past the two-thirds mark, which is the opposite of
+            // what a shoulder is for and put a step in every gradient crossing
+            // it.
+            //
+            // This form leaves the shoulder with slope exactly 1, so it is C1
+            // with the segment below, and still arrives at white with the same
+            // value *and* the same slope as the old curve.
+            //
+            //   v(u)  = u − e⁻ᵏ·uᵖ,  p = eᵏ − k
+            //   v(1)  = 1 − e⁻ᵏ        as before
+            //   v'(0) = 1              continuous with the identity below
+            //   v'(1) = k·e⁻ᵏ          as before
+            //
+            // Monotone for every k > 0: e⁻ᵏ·p = 1 − k·e⁻ᵏ < 1, so v' never
+            // reaches 0.
+            let shape = excess - exp(-k) * pow(excess, exp(k) - k)
+            x = shoulder + (1 - shoulder) * shape
         }
 
         return x.clamped(to: 0...1)
@@ -232,7 +265,10 @@ public enum FilmModel {
 
         let lightness = lum / 255
 
-        if shadowWeight > 0.001 {
+        // Applied unconditionally. A `> 0.001` guard made the tint stop rather
+        // than fade, and it crossed that threshold at luma 137.4 — a step in
+        // the middle of a curve that has to be continuous everywhere.
+        do {
             // Tint carries the pixel's own lightness, so toning shifts hue
             // without shifting exposure.
             let tint = hslToRGB(
@@ -244,7 +280,7 @@ public enum FilmModel {
             g = JSMath.lerp(g, tint.g, shadowWeight)
             b = JSMath.lerp(b, tint.b, shadowWeight)
         }
-        if highlightWeight > 0.001 {
+        do {
             let tint = hslToRGB(
                 stock.highlightHue,
                 tintSaturation(highlightChroma, lightness),
@@ -271,31 +307,38 @@ public enum FilmModel {
         let original = rgbToHSL(r, g, b)
         var hsl = original
 
-        let vibranceBoost = vibrance * (1 - hsl.saturation)
+        // Faded out as chroma does, for the same reason as the grading path:
+        // without it a neutral ramp flipped from cool to warm between input
+        // 137 and 139, on a residual of a tenth of a code value.
+        let vibranceBoost = vibrance * (1 - hsl.saturation) * chromaConfidence(r, g, b)
         hsl.saturation = (hsl.saturation * saturation + vibranceBoost).clamped(to: 0...1)
 
         // Note: this tests the pixel as the chain has already transformed it,
         // not the original. See render(r:g:b:through:).
-        let isSkin = preserveSkin && isSkinTone(r, g, b)
+        let skin = preserveSkin ? skinToneWeight(r, g, b) : 0
 
-        // A hue that has drifted more than 15° off skin is snapped back — the
-        // shift that would read as an unnatural face.
-        if isSkin, hueDistance(hsl.hue, original.hue) > 15 {
-            hsl.hue = original.hue
+        // A soft limit rather than a snap. Returning the hue outright meant a
+        // pixel drifting through 15° jumped the whole way back; this pulls back
+        // only the excess, in proportion to how much like skin the pixel is.
+        if skin > 0 {
+            let drift = signedHueDelta(hsl.hue, original.hue)
+            let excess = abs(drift) - skinHueLimit
+            if excess > 0 {
+                hsl.hue = (hsl.hue - (drift < 0 ? -1 : 1) * excess * skin + 360)
+                    .truncatingRemainder(dividingBy: 360)
+            }
         }
 
         let converted = hslToRGB(hsl.hue, hsl.saturation, hsl.lightness)
-        var out = converted
 
-        if isSkin {
-            out = (
-                JSMath.lerp(r, out.r, skinPreserveBlend),
-                JSMath.lerp(g, out.g, skinPreserveBlend),
-                JSMath.lerp(b, out.b, skinPreserveBlend)
-            )
-        }
-
-        return out
+        // Full skin confidence keeps `skinPreserveBlend` of the effect and
+        // feathers smoothly to the whole of it away from skin.
+        let keep = 1 - (1 - skinPreserveBlend) * skin
+        return (
+            JSMath.lerp(r, converted.r, keep),
+            JSMath.lerp(g, converted.g, keep),
+            JSMath.lerp(b, converted.b, keep)
+        )
     }
 
     /// Halation: light scattering off the film base back into bright edges.
@@ -330,7 +373,8 @@ public enum FilmModel {
         warmth: Double
     ) -> (r: Double, g: Double, b: Double) {
         let mask = JSMath.smoothstep(215, 250, filmLuma(r, g, b)) * amount
-        guard mask >= 0.001 else { return (r, g, b) }
+        // No early return: at mask = 0 the arithmetic below is already the
+        // identity, and a threshold would only put a step where the halo starts.
         return (
             r + mask * 16 * warmth,
             g + mask * 6 * warmth,

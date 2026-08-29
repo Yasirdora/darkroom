@@ -48,6 +48,25 @@ public enum JSMath {
     }
 }
 
+/// How much a pixel's hue can be trusted, 0–1, from its chroma.
+///
+/// Below two code values of chroma a pixel is grey and its hue is whatever
+/// rounding left behind; by ten it is carrying real colour. Any effect that
+/// acts on hue has to fade out across that span, or it turns noise into a
+/// cast — an ungated vibrance put a grey card at (145,111,111).
+///
+/// Gated on chroma rather than HSL saturation: saturation divides by
+/// lightness, so a dark pixel carrying two code values of chroma reports as
+/// 9% saturated.
+///
+/// Mirrors `chromaConfidence` in `src/lib/processing/color.ts`.
+@inlinable
+public func chromaConfidence(_ r: Double, _ g: Double, _ b: Double) -> Double {
+    let chroma = (Swift.max(r, Swift.max(g, b)) - Swift.min(r, Swift.min(g, b))) / 255
+    let t = ((chroma - 2.0 / 255.0) / (10.0 / 255.0 - 2.0 / 255.0)).clamped(to: 0...1)
+    return t * t * (3 - 2 * t)
+}
+
 /// Rec.709 luma of an 8-bit RGB triplet.
 ///
 /// The film model weights luma by Rec.709 coefficients but applies them to
@@ -138,6 +157,38 @@ public func hslToRGB(_ h: Double, _ s: Double, _ l: Double) -> (r: Double, g: Do
         JSMath.clampByte((gp + m) * 255),
         JSMath.clampByte((bp + m) * 255)
     )
+}
+
+/// Feathered skin likelihood, 0–1.
+///
+/// Use this rather than ``isSkinTone`` for any per-pixel blend. A boolean test
+/// flips between neighbouring pixels wherever one crosses an edge of the
+/// window, which reads as blotchy contours across a face and as a step in a
+/// gradient — it put a three-code jump into a magicSunset ramp at input 98.
+///
+/// Mirrors `skinToneWeight` in `src/lib/processing/image-analysis.ts`.
+public func skinToneWeight(_ r: Double, _ g: Double, _ b: Double) -> Double {
+    let hsl = rgbToHSL(r, g, b)
+
+    func window(_ v: Double, _ lo: Double, _ hi: Double, _ soft: Double) -> Double {
+        if v >= lo && v <= hi { return 1 }
+        let distance = v < lo ? lo - v : v - hi
+        return Swift.max(0, 1 - distance / soft)
+    }
+
+    // Hue band wraps through zero: 335°…360°…50°, feathered by 14°.
+    let hue = hsl.hue
+    let hueWeight: Double = (hue <= 50 || hue >= 335)
+        ? 1
+        : Swift.max(0, 1 - Swift.min(hue - 50, 335 - hue) / 14)
+
+    // The saturation window feathers by 0.1 below a 0.05 edge, so it only
+    // reaches zero at s = -0.05 — meaning it never does. Hue is not a property
+    // of a grey pixel, so gate on chroma as well.
+    return hueWeight
+        * window(hsl.saturation, 0.05, 0.75, 0.1)
+        * window(hsl.lightness, 0.05, 0.85, 0.1)
+        * chromaConfidence(r, g, b)
 }
 
 /// Whether a colour plausibly belongs to skin.

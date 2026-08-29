@@ -14,7 +14,10 @@
     "verify:grade-share": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/verify-grade-share.ts",
     "measure:looks": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/measure-looks.ts",
     "probe:ramp": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/probe-ramp.ts",
-    "bench:thumbs": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/bench-thumbnails.ts"
+    "bench:thumbs": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/bench-thumbnails.ts",
+    "audit:precision": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/audit-precision.ts",
+    "audit:interpolation": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/audit-interpolation.ts",
+    "audit:continuity": "node --experimental-strip-types --import ./tools/reference/resolve-hook.js tools/reference/audit-continuity.ts"
   },
   "engines": {
     "node": ">=20"

@@ -1,5 +1,5 @@
 import { ImageBuffer } from '../core/image-buffer';
-import { rgbToHsl } from './color';
+import { chromaConfidence, rgbToHsl } from './color';
 
 const ANALYSIS_MAX_DIMENSION = 720;
 
@@ -136,7 +136,16 @@ export const skinToneWeight = (r: number, g: number, b: number): number => {
     hueWeight = Math.max(0, 1 - dist / 14);
   }
 
-  return hueWeight * window(s, 0.05, 0.75, 0.1) * window(l, 0.05, 0.85, 0.1);
+  // The saturation window feathers by 0.1 below a 0.05 edge, so it only reaches
+  // zero at s = -0.05 — meaning it never does. That reported a pixel at 1.7%
+  // saturation, which is grey, as 0.674 skin. Hue is not a property of a grey
+  // pixel, so gate on chroma as well.
+  return (
+    hueWeight *
+    window(s, 0.05, 0.75, 0.1) *
+    window(l, 0.05, 0.85, 0.1) *
+    chromaConfidence(r, g, b)
+  );
 };
 
 const isSkyPixel = (r: number, g: number, b: number, lum: number): boolean => {

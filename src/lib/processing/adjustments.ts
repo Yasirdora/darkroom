@@ -1,6 +1,6 @@
 import type { Adjustments } from '../core/types';
 import { clamp, clampByte, lerp, seededNoise } from '../core/math';
-import { hslToRgb, rgbToHsl } from './color';
+import { chromaConfidence, hslToRgb, rgbToHsl } from './color';
 import { skinToneWeight } from './image-analysis';
 import { ImageBuffer } from '../core/image-buffer';
 import { applyBoxBlur } from './effects/blur';
@@ -263,6 +263,13 @@ export const applyAdjustments = (
       const lum = luminance(r, g, b) / 255;
       const lumFactor = Math.min(1, Math.max(0, (lum - 0.03) / 0.35));
       vBoost *= lumFactor;
+      // Fade out as chroma does. Hue is undefined at zero chroma and unreliable
+      // near it — at five codes, half a code of rounding swings the hue by tens
+      // of degrees — so a boost that survives to zero amplifies noise into
+      // colour. It put a grey card at (145,111,111). Gate on chroma rather than
+      // hsl.s, which divides by lightness and so reports a dark pixel carrying
+      // two codes of chroma as 9% saturated.
+      vBoost *= chromaConfidence(r, g, b);
       s = clamp(s + vBoost, 0, 1);
     }
 

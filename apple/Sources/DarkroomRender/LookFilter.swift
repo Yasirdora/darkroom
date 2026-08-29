@@ -114,8 +114,70 @@ public enum LookFilter {
     ///   seems obviously right and is a regression: it applies a correction Core
     ///   Image has already made, and a 50%-alpha pixel then grades to a visibly
     ///   different colour from its opaque twin. Measured, not reasoned —
-    ///   `LookAlphaChecks` holds the numbers.
+    ///   `RenderChecks.transparencyCheck` holds the numbers.
     public static func apply(_ cube: ColorCube, to image: CIImage) -> CIImage {
+        if let tetrahedral = applyTetrahedral(cube, to: image) { return tetrahedral }
+        return applyTrilinear(cube, to: image)
+    }
+
+    // MARK: - Tetrahedral
+
+    private static let cubeKernel = Result {
+        try KernelLibrary.kernel("darkroomLookCube")
+    }
+
+    /// Whether the tetrahedral path is available on this machine.
+    public static var isTetrahedralAvailable: Bool { (try? cubeKernel.get()) != nil }
+
+    /// Applies the cube with tetrahedral interpolation, or nil if unavailable.
+    ///
+    /// `CIColorCubeWithColorSpace` blends all eight lattice corners around a
+    /// sample. Six of them are off the neutral axis, so on a saturating look
+    /// they drag grey off grey — Velvia's mid-grey came back green +8, blue -8.
+    /// Tetrahedral touches four corners and, on the neutral diagonal, only the
+    /// two neutral ones. Worst case on that axis across the catalogue falls
+    /// from 3.40 code values to 1.45.
+    ///
+    /// Doing it by hand means taking on the two things the stock filter was
+    /// handling: the sRGB bracketing the profiles were authored in, and
+    /// unpremultiplying before a lookup on colour. Both are in the kernel, and
+    /// `RenderChecks.transparencyCheck` holds the alpha half to account.
+    static func applyTetrahedral(_ cube: ColorCube, to image: CIImage) -> CIImage? {
+        guard let kernel = try? cubeKernel.get() else { return nil }
+        let table = cubeImage(from: cube)
+
+        return kernel.apply(
+            extent: image.extent,
+            // Every output pixel reads its own input pixel and may read any
+            // entry of the cube, so the cube's region of interest is always its
+            // whole extent — returning less would let Core Image tile it and
+            // read past the edge.
+            roiCallback: { index, rect in
+                index == 0 ? rect : table.extent
+            },
+            arguments: [image, table, Float(cube.size)]
+        )
+    }
+
+    /// The cube as an image: one slice per blue index, laid out left to right.
+    ///
+    /// No colour space, for the same reason the curve table has none — these
+    /// are lookup values, and naming a space would have Core Image bend every
+    /// one of them by that space's transfer function on read.
+    static func cubeImage(from cube: ColorCube) -> CIImage {
+        CIImage(
+            bitmapData: cubeData(from: cube),
+            bytesPerRow: cube.size * cube.size * 4 * MemoryLayout<Float>.size,
+            size: CGSize(width: cube.size * cube.size, height: cube.size),
+            format: .RGBAf,
+            colorSpace: nil
+        )
+    }
+
+    // MARK: - Trilinear
+
+    /// The stock filter, kept as the fallback when the kernel will not load.
+    static func applyTrilinear(_ cube: ColorCube, to image: CIImage) -> CIImage {
         let filter = CIFilter(name: "CIColorCubeWithColorSpace", parameters: [
             kCIInputImageKey: image,
             "inputCubeDimension": cube.size,

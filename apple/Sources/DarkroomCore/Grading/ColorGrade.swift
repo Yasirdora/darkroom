@@ -63,6 +63,10 @@ public enum ColorGrade {
                 : vibrance * 0.7 * pow(baseSaturation, 0.7)
             let luminance = filmLuma(c.x, c.y, c.z) / 255
             boost *= ((luminance - 0.03) / 0.35).clamped(to: 0...1)
+            // Faded out as chroma does. Hue is undefined at zero chroma and
+            // unreliable near it, so a boost that survives to zero paints
+            // rounding noise as colour.
+            boost *= chromaConfidence(c.x, c.y, c.z)
             saturation = (saturation + boost).clamped(to: 0...1)
         }
         hsl.saturation = saturation
@@ -71,7 +75,7 @@ public enum ColorGrade {
         c = SIMD3(converted.r, converted.g, converted.b)
 
         if vibrance > 0 {
-            let weight = skinWeight(preColor)
+            let weight = skinToneWeight(preColor.x, preColor.y, preColor.z)
             if weight > 0 {
                 let blend = 1 - 0.45 * weight
                 c = preColor + (c - preColor) * blend
@@ -144,24 +148,5 @@ public enum ColorGrade {
         return t * t * (3 - 2 * t)
     }
 
-    /// Feathered skin likelihood, matching the kernel's trapezoid windows.
-    private static func skinWeight(_ c: SIMD3<Double>) -> Double {
-        let hsl = rgbToHSL(c.x, c.y, c.z)
-
-        func trapezoid(_ v: Double, _ lo: Double, _ hi: Double, _ soft: Double) -> Double {
-            if v >= lo && v <= hi { return 1 }
-            let distance = v < lo ? lo - v : v - hi
-            return max(0, 1 - distance / soft)
-        }
-
-        let hue = hsl.hue
-        let hueWeight: Double = (hue <= 50 || hue >= 335)
-            ? 1
-            : max(0, 1 - min(hue - 50, 335 - hue) / 14)
-
-        return hueWeight
-            * trapezoid(hsl.saturation, 0.05, 0.75, 0.1)
-            * trapezoid(hsl.lightness, 0.05, 0.85, 0.1)
-    }
 }
 

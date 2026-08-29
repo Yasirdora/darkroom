@@ -9,7 +9,7 @@ import {
   SITE_DESCRIPTION,
   SITE_KEYWORDS,
   SITE_NAME,
-} from './src/lib/constants/site';
+} from './src/lib/constants/site.js';
 
 const siteUrl = (process.env.SITE_URL ?? SITE_DEFAULT_URL).replace(/\/$/, '');
 

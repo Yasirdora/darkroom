@@ -5,7 +5,8 @@ import DarkroomCore
 public enum GradingChecks {
 
     public static func all() throws -> [CheckResult] {
-        try curveChecks() + curveApplicationChecks() + adjustmentChecks() + cubeChecks()
+        try curveChecks() + curveApplicationChecks() + adjustmentChecks()
+            + neutralAxisChecks() + cubeChecks()
     }
 
     /// The full curve stage — per-channel curves plus the master's luminance
@@ -149,6 +150,83 @@ public enum GradingChecks {
     /// TypeScript engine defines the look, `ColorGrade` is checked against it
     /// here, and the Metal kernel is checked against `ColorGrade` in
     /// `RenderChecks`. Break any link and the chain reports which one.
+    /// A neutral in must stay a neutral out.
+    ///
+    /// Only four controls exist to put colour into a picture — temperature,
+    /// tint, sepia, and the film looks. Every other control is tonal, and a
+    /// tonal operation maps all three channels through the same function, so
+    /// equal channels have to stay equal. Any that does not is either tinting
+    /// without saying so, or amplifying a hue that carries no signal.
+    ///
+    /// `ColorScienceChecks` already asserts this for `InputProfile`, but its
+    /// subject is the log-to-display stage alone — the grading path is never
+    /// handed a grey. That gap is how a grey card came to render at
+    /// (140,112,111) with 271 checks passing.
+    static func neutralAxisChecks() -> [CheckResult] {
+        let suite = "Neutral axis"
+        var results: [CheckResult] = []
+
+        // Controls whose declared purpose is to move colour. Everything else
+        // is on the hook.
+        let tinting: Set<Adjustments.Key> = [.temperature, .tint, .sepia]
+        // Spatial controls need neighbouring pixels; `ColorGrade.apply` is
+        // per-pixel and ignores them.
+        let spatial: Set<Adjustments.Key> = [.clarity, .sharpen, .vignette, .grain]
+
+        let greys: [Double] = [0, 8, 32, 64, 96, 128, 160, 192, 224, 247, 255]
+
+        var strict = Checker(suite: suite, name: "a tonal control cannot tint a neutral")
+        for key in Adjustments.Key.allCases where !tinting.contains(key) && !spatial.contains(key) {
+            for value in [key.range.lowerBound, key.range.lowerBound / 2,
+                          key.range.upperBound / 2, key.range.upperBound] where value != 0 {
+                var adjustments = Adjustments()
+                adjustments[key] = value
+                for grey in greys {
+                    let out = ColorGrade.apply(adjustments, r: grey, g: grey, b: grey)
+                    let spread = max(out.r, max(out.g, out.b)) - min(out.r, min(out.g, out.b))
+                    strict.expect(
+                        spread <= 1,
+                        "\(key.rawValue) \(Int(value)) turned grey \(Int(grey)) into "
+                            + "(\(Int(out.r.rounded())),\(Int(out.g.rounded())),\(Int(out.b.rounded()))) "
+                            + "— spread \(String(format: "%.1f", spread))"
+                    )
+                }
+            }
+        }
+        results.append(strict.finish())
+
+        // A near-neutral carries a couple of codes of chroma that are as likely
+        // to be sensor noise or JPEG error as colour. A tonal control may
+        // expand them a little — contrast legitimately does — but nothing may
+        // multiply them into a cast.
+        var bounded = Checker(suite: suite, name: "a tonal control cannot amplify near-neutral chroma")
+        let nearNeutrals: [(Double, Double, Double)] = [
+            (130, 131, 132), (176, 178, 181), (214, 213, 211), (64, 64, 65), (96, 97, 96),
+        ]
+        for key in Adjustments.Key.allCases where !tinting.contains(key) && !spatial.contains(key) {
+            for value in [key.range.lowerBound, key.range.upperBound] where value != 0 {
+                var adjustments = Adjustments()
+                adjustments[key] = value
+                for pixel in nearNeutrals {
+                    let inChroma = max(pixel.0, max(pixel.1, pixel.2))
+                        - min(pixel.0, min(pixel.1, pixel.2))
+                    let out = ColorGrade.apply(adjustments, r: pixel.0, g: pixel.1, b: pixel.2)
+                    let outChroma = max(out.r, max(out.g, out.b)) - min(out.r, min(out.g, out.b))
+                    // Generous: four times, plus a code of slack for rounding.
+                    // Vibrance was managing nineteen.
+                    bounded.expect(
+                        outChroma <= inChroma * 4 + 1,
+                        "\(key.rawValue) \(Int(value)) took chroma \(Int(inChroma)) to "
+                            + "\(String(format: "%.1f", outChroma)) on \(pixel)"
+                    )
+                }
+            }
+        }
+        results.append(bounded.finish())
+
+        return results
+    }
+
     static func adjustmentChecks() throws -> [CheckResult] {
         let suite = "Adjustments"
         let vectors = try ReferenceVectors.adjustments()

@@ -103,6 +103,20 @@ static inline float trapezoid(float v, float lo, float hi, float soft) {
     return max(0.0f, 1.0f - dist / soft);
 }
 
+static inline float smootherstep(float e0, float e1, float x);
+
+// How much a pixel's hue can be trusted, 0-1, from its chroma.
+//
+// Below two code values of chroma a pixel is grey and its hue is whatever
+// rounding left behind; by ten it is carrying real colour. Any effect acting
+// on hue fades out across that span, or it turns noise into a cast — an
+// ungated vibrance put a grey card at (145,111,111).
+//
+// Mirrors `chromaConfidence` in ColorConversion.swift and color.ts.
+static inline float chroma_confidence(float3 c) {
+    float chroma = (max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b))) / 255.0f;
+    return smootherstep(2.0f / 255.0f, 10.0f / 255.0f, chroma);
+}
 static inline float skin_weight(float3 c) {
     float3 hsl = rgb_to_hsl(c);
     float h = hsl.x;
@@ -115,9 +129,13 @@ static inline float skin_weight(float3 c) {
         hueWeight = max(0.0f, 1.0f - min(h - 50.0f, 335.0f - h) / 14.0f);
     }
 
+    // The saturation trapezoid feathers by 0.1 below a 0.05 edge, so it only
+    // reaches zero at s = -0.05 — meaning it never does. Hue is not a property
+    // of a grey pixel, so gate on chroma as well.
     return hueWeight
         * trapezoid(hsl.y, 0.05f, 0.75f, 0.1f)
-        * trapezoid(hsl.z, 0.05f, 0.85f, 0.1f);
+        * trapezoid(hsl.z, 0.05f, 0.85f, 0.1f)
+        * chroma_confidence(c);
 }
 
 // MARK: - Tone
@@ -133,6 +151,8 @@ static inline float smootherstep(float e0, float e1, float x) {
     float t = clamp((x - e0) / (e1 - e0), 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);
 }
+
+
 
 // Highlights, shadows, whites and blacks as a single luminance-weighted offset.
 //
@@ -228,6 +248,8 @@ extern "C" float4 darkroomGrade(
         // noise rather than richer colour — and does visible harm on dark skin.
         float lum = luma255(c) / 255.0f;
         boost *= clamp((lum - 0.03f) / 0.35f, 0.0f, 1.0f);
+        // Faded out as chroma does; see chroma_confidence.
+        boost *= chroma_confidence(c);
         sat = clamp(sat + boost, 0.0f, 1.0f);
     }
 

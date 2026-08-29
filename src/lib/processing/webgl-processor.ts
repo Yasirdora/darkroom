@@ -65,6 +65,14 @@ const FRAG_GRADING = `
     return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
   }
 
+  // Trapezoid window: 1 inside [lo, hi], linear feather of width 'soft'
+  // outside. Matches the CPU's skinToneWeight.
+  float trapezoid(float v, float lo, float hi, float soft) {
+    if (v >= lo && v <= hi) return 1.0;
+    float d = v < lo ? lo - v : v - hi;
+    return max(0.0, 1.0 - d / soft);
+  }
+
   vec3 hsv2rgb(vec3 c) {
     vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
     vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
@@ -132,14 +140,27 @@ const FRAG_GRADING = `
       float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
       float lumFactor = min(1.0, max(0.0, (lum - 0.03) / 0.35));
       vBoost *= lumFactor;
+      // Fade out as chroma does (matches CPU chromaConfidence). Hue is
+      // undefined at zero chroma, so an ungated boost paints noise.
+      float chroma = max(rgb.r, max(rgb.g, rgb.b)) - min(rgb.r, min(rgb.g, rgb.b));
+      vBoost *= smoothstep(2.0 / 255.0, 10.0 / 255.0, chroma);
       hsv.y = clamp(hsv.y + vBoost, 0.0, 1.0);
 
-      // approx skin protection (relaxed for dark skin, use orig)
+      // Skin protection, feathered rather than boolean. A hard cutoff flips
+      // between neighbouring pixels and reads as blotchy contours across a
+      // face — the reason the CPU path uses skinToneWeight. The HSV/HSL
+      // difference against the CPU is pre-existing and this stays an
+      // approximation; what changes is that it no longer steps.
       float h = hsv.x * 360.0;
-      if (vib > 0.0 && origS > 0.05 && origS < 0.78 && hsv.z > 0.03 && hsv.z < 0.88 &&
-          ((h >= 0.0 && h <= 55.0) || h >= 330.0)) {
-        float protect = 0.45; // match CPU blend ~0.55
-        hsv.y -= vBoost * protect;
+      float hueW = (h <= 50.0 || h >= 335.0)
+        ? 1.0
+        : max(0.0, 1.0 - min(h - 50.0, 335.0 - h) / 14.0);
+      float skinW = hueW
+        * trapezoid(origS, 0.05, 0.75, 0.1)
+        * trapezoid(hsv.z, 0.05, 0.85, 0.1)
+        * smoothstep(2.0 / 255.0, 10.0 / 255.0, chroma);
+      if (vib > 0.0 && skinW > 0.0) {
+        hsv.y -= vBoost * 0.45 * skinW; // match CPU blend ~0.55
         hsv.y = clamp(hsv.y, 0.0, 1.0);
       }
     }

@@ -113,30 +113,58 @@ public struct ColorCube: Sendable, Equatable, Hashable {
         let gf = (g / 255) * Double(maxIndex)
         let bf = (b / 255) * Double(maxIndex)
 
-        let r0 = Int(rf.rounded(.down)), g0 = Int(gf.rounded(.down)), b0 = Int(bf.rounded(.down))
-        let r1 = Swift.min(r0 + 1, maxIndex), g1 = Swift.min(g0 + 1, maxIndex), b1 = Swift.min(b0 + 1, maxIndex)
-        let rt = rf - Double(r0), gt = gf - Double(g0), bt = bf - Double(b0)
+        // Clamped so the upper corner is always a valid index: at the top of
+        // the range the floor is the last entry and there is nothing above it.
+        let r0 = Swift.min(Swift.max(Int(rf.rounded(.down)), 0), maxIndex - 1)
+        let g0 = Swift.min(Swift.max(Int(gf.rounded(.down)), 0), maxIndex - 1)
+        let b0 = Swift.min(Swift.max(Int(bf.rounded(.down)), 0), maxIndex - 1)
+        let dr = rf - Double(r0), dg = gf - Double(g0), db = bf - Double(b0)
 
-        func lerp(_ a: Double, _ b: Double, _ t: Double) -> Double { a + (b - a) * t }
-
-        func channel(_ pick: ((r: UInt8, g: UInt8, b: UInt8)) -> UInt8) -> Double {
-            let c000 = Double(pick(entry(r: r0, g: g0, b: b0)))
-            let c100 = Double(pick(entry(r: r1, g: g0, b: b0)))
-            let c010 = Double(pick(entry(r: r0, g: g1, b: b0)))
-            let c110 = Double(pick(entry(r: r1, g: g1, b: b0)))
-            let c001 = Double(pick(entry(r: r0, g: g0, b: b1)))
-            let c101 = Double(pick(entry(r: r1, g: g0, b: b1)))
-            let c011 = Double(pick(entry(r: r0, g: g1, b: b1)))
-            let c111 = Double(pick(entry(r: r1, g: g1, b: b1)))
-
-            let x00 = lerp(c000, c100, rt)
-            let x10 = lerp(c010, c110, rt)
-            let x01 = lerp(c001, c101, rt)
-            let x11 = lerp(c011, c111, rt)
-            return lerp(lerp(x00, x10, gt), lerp(x01, x11, gt), bt)
+        func at(_ x: Int, _ y: Int, _ z: Int) -> SIMD3<Double> {
+            let e = entry(r: r0 + x, g: g0 + y, b: b0 + z)
+            return SIMD3(Double(e.r), Double(e.g), Double(e.b))
         }
 
-        return (channel(\.r), channel(\.g), channel(\.b))
+        let c000 = at(0, 0, 0)
+        let c111 = at(1, 1, 1)
+
+        // Tetrahedral, matching `darkroomLookCube`. Trilinear blends all eight
+        // corners, six of which are off the neutral axis, so on a saturating
+        // look they drag grey off grey — Velvia's mid-grey came back green +8,
+        // blue -8. Splitting the cube into six tetrahedra and walking the one
+        // the sample falls in touches four corners, and on the neutral diagonal
+        // the intermediate terms cancel to leave a straight line between the
+        // two neutral corners.
+        //
+        // The CPU and GPU samplers must agree: this one backs `.cube` export
+        // and the render checks, and a difference between them would show up as
+        // an exported LUT that does not match what the app displayed.
+        let out: SIMD3<Double>
+        if dr > dg {
+            if dg > db {                                   // r > g > b
+                let a = at(1, 0, 0), b = at(1, 1, 0)
+                out = c000 + (a - c000) * dr + (b - a) * dg + (c111 - b) * db
+            } else if dr > db {                            // r > b > g
+                let a = at(1, 0, 0), b = at(1, 0, 1)
+                out = c000 + (a - c000) * dr + (c111 - b) * dg + (b - a) * db
+            } else {                                       // b > r > g
+                let a = at(0, 0, 1), b = at(1, 0, 1)
+                out = c000 + (b - a) * dr + (c111 - b) * dg + (a - c000) * db
+            }
+        } else {
+            if db > dg {                                   // b > g > r
+                let a = at(0, 0, 1), b = at(0, 1, 1)
+                out = c000 + (c111 - b) * dr + (b - a) * dg + (a - c000) * db
+            } else if db > dr {                            // g > b > r
+                let a = at(0, 1, 0), b = at(0, 1, 1)
+                out = c000 + (c111 - b) * dr + (a - c000) * dg + (b - a) * db
+            } else {                                       // g > r > b
+                let a = at(0, 1, 0), b = at(1, 1, 0)
+                out = c000 + (b - a) * dr + (a - c000) * dg + (c111 - b) * db
+            }
+        }
+
+        return (out.x, out.y, out.z)
     }
 
     // MARK: - Identity

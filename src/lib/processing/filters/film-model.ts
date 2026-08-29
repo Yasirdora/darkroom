@@ -1,6 +1,6 @@
 import { clamp, clampByte, lerp } from '../../core/math';
-import { hslToRgb, rgbToHsl } from '../color';
-import { isSkinTone } from '../image-analysis';
+import { chromaConfidence, hslToRgb, rgbToHsl } from '../color';
+import { skinToneWeight } from '../image-analysis';
 import type { FilterCategory, FilterId } from '../../core/types';
 
 export type ScannerProfile = 'frontier' | 'noritsu' | 'neutral' | 'ecn2' | 'ecp';
@@ -125,7 +125,27 @@ const applyCurve = (value: number, curve: ChannelCurve, under: number, over: num
 
   if (x > shoulder) {
     const excess = (x - shoulder) / Math.max(1 - shoulder, 0.001);
-    x = shoulder + (1 - shoulder) * (1 - Math.exp(-excess * (1.6 + shoulderStr * 2.8)));
+    const k = 1.6 + shoulderStr * 2.8;
+    // Was `1 - exp(-k·excess)`, which leaves the shoulder with slope k — about
+    // 2.6 on a default stock, against 1 immediately below it. Highlights
+    // therefore *expanded* by more than a stop of local contrast at the onset
+    // and only began compressing past the two-thirds mark, which is the
+    // opposite of what a shoulder is for and put a step in every gradient
+    // crossing it.
+    //
+    // This form leaves the shoulder with slope exactly 1, so it is C1 with the
+    // segment below, and still arrives at white with the same value *and* the
+    // same slope as the old curve — so the highlight rolloff each stock was
+    // tuned for is preserved at the top even though the middle no longer lifts.
+    //
+    //   v(u)  = u − e⁻ᵏ·uᵖ,  p = eᵏ − k
+    //   v(1)  = 1 − e⁻ᵏ        as before
+    //   v'(0) = 1              continuous with the identity below
+    //   v'(1) = k·e⁻ᵏ          as before
+    //
+    // Monotone for every k > 0: e⁻ᵏ·p = 1 − k·e⁻ᵏ < 1, so v' never reaches 0.
+    const shape = excess - Math.exp(-k) * Math.pow(excess, Math.exp(k) - k);
+    x = shoulder + (1 - shoulder) * shape;
   }
 
   return clamp(x, 0, 1);
@@ -214,13 +234,18 @@ const applyTiming = (
 
   const l = lum / 255;
 
-  if (sW > 0.001) {
+  // Applied unconditionally. A `> 0.001` guard here made the tint stop rather
+  // than fade: it crossed that threshold at luma 137.4, putting a step in the
+  // middle of a curve that has to be continuous everywhere. The step was worth
+  // about 0.04 code values, which is small enough to hide and large enough to
+  // be real. Both branches execute on the GPU regardless, so it bought nothing.
+  {
     const tint = hslToRgb(profile.shadowHue, tintSaturation(SHADOW_CHROMA, l), l);
     r = lerp(r, tint.r, sW);
     g = lerp(g, tint.g, sW);
     b = lerp(b, tint.b, sW);
   }
-  if (hW > 0.001) {
+  {
     const tint = hslToRgb(profile.highlightHue, tintSaturation(HIGHLIGHT_CHROMA, l), l);
     r = lerp(r, tint.r, hW);
     g = lerp(g, tint.g, hW);
@@ -231,9 +256,14 @@ const applyTiming = (
 
 const SKIN_PRESERVE_BLEND = 0.4;
 
-const hueDelta = (a: number, b: number): number => {
-  let delta = Math.abs(a - b);
-  if (delta > 180) delta = 360 - delta;
+/** How far skin is allowed to drift in hue before the guard pulls it back. */
+const SKIN_HUE_LIMIT = 15;
+
+/** Signed shortest-arc hue difference, -180…180. */
+const signedHueDelta = (a: number, b: number): number => {
+  let delta = (a - b) % 360;
+  if (delta > 180) delta -= 360;
+  if (delta < -180) delta += 360;
   return delta;
 };
 
@@ -247,25 +277,36 @@ const applySaturation = (
 ): [number, number, number] => {
   const originalHsl = rgbToHsl(r, g, b);
   const hsl = { ...originalHsl };
-  const vBoost = vibranceAmt * (1 - hsl.s);
+  // Faded out as chroma does: hue is undefined at zero chroma and unreliable
+  // near it, so an ungated boost amplifies rounding into colour. Without this
+  // a neutral ramp through magicNatural flipped from cool to warm between
+  // input 137 and 139, on a residual of a tenth of a code value.
+  const vBoost = vibranceAmt * (1 - hsl.s) * chromaConfidence(r, g, b);
   hsl.s = clamp(hsl.s * sat + vBoost, 0, 1);
 
-  if (skinPreserve && isSkinTone(r, g, b) && hueDelta(hsl.h, originalHsl.h) > 15) {
-    hsl.h = originalHsl.h;
+  // Feathered, not boolean. A hard `isSkinTone` cutoff flips between
+  // neighbouring pixels: it put a three-code step into a magicSunset grey ramp
+  // at input 98, where the pixel's saturation crosses the 0.05 edge, and left
+  // the blue channel non-monotonic across it. On a face the same flip is the
+  // blotchy contour `skinToneWeight` was written to avoid.
+  const skin = skinPreserve ? skinToneWeight(r, g, b) : 0;
+
+  // A soft limit rather than a snap. Returning the hue outright meant a pixel
+  // drifting through 15° jumped the whole way back; this pulls back only the
+  // excess, and only in proportion to how much like skin the pixel is.
+  if (skin > 0) {
+    const drift = signedHueDelta(hsl.h, originalHsl.h);
+    const excess = Math.abs(drift) - SKIN_HUE_LIMIT;
+    if (excess > 0) {
+      hsl.h = (hsl.h - Math.sign(drift) * excess * skin + 360) % 360;
+    }
   }
 
   const rgb = hslToRgb(hsl.h, hsl.s, hsl.l);
-  let out: [number, number, number] = [rgb.r, rgb.g, rgb.b];
-
-  if (skinPreserve && isSkinTone(r, g, b)) {
-    out = [
-      lerp(r, out[0], SKIN_PRESERVE_BLEND),
-      lerp(g, out[1], SKIN_PRESERVE_BLEND),
-      lerp(b, out[2], SKIN_PRESERVE_BLEND),
-    ];
-  }
-
-  return out;
+  // Full skin confidence keeps SKIN_PRESERVE_BLEND of the effect and feathers
+  // smoothly to the whole of it away from skin.
+  const keep = 1 - (1 - SKIN_PRESERVE_BLEND) * skin;
+  return [lerp(r, rgb.r, keep), lerp(g, rgb.g, keep), lerp(b, rgb.b, keep)];
 };
 
 const applyHalation = (
@@ -276,7 +317,8 @@ const applyHalation = (
   warmth: number,
 ): [number, number, number] => {
   const mask = smoothstep(215, 250, luma(r, g, b)) * amount;
-  if (mask < 0.001) return [r, g, b];
+  // No early return: at mask = 0 the arithmetic below is already the identity,
+  // and a threshold would only put a step where the halo starts.
   return [
     r + mask * 16 * warmth,
     g + mask * 6 * warmth,
@@ -341,10 +383,14 @@ export const renderFilmPixel = (
   const preserveSkin = profile.skinPreserve === true;
   const preTiming: [number, number, number] = [cr, cg, cb];
   [cr, cg, cb] = applyTiming(cr, cg, cb, profile);
-  if (preserveSkin && isSkinTone(r, g, b)) {
-    cr = lerp(preTiming[0], cr, SKIN_PRESERVE_BLEND);
-    cg = lerp(preTiming[1], cg, SKIN_PRESERVE_BLEND);
-    cb = lerp(preTiming[2], cb, SKIN_PRESERVE_BLEND);
+  // Feathered for the same reason as the saturation stage: a boolean here put
+  // a step wherever a face crossed the skin test.
+  const timingSkin = preserveSkin ? skinToneWeight(r, g, b) : 0;
+  if (timingSkin > 0) {
+    const keep = 1 - (1 - SKIN_PRESERVE_BLEND) * timingSkin;
+    cr = lerp(preTiming[0], cr, keep);
+    cg = lerp(preTiming[1], cg, keep);
+    cb = lerp(preTiming[2], cb, keep);
   }
 
   [cr, cg, cb] = applySaturation(

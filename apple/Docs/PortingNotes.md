@@ -1985,3 +1985,224 @@ something that was not the problem — not that the code was fine.
 
 That whole approach was removed. The rule is the simple one again — zoomed means
 full-bleed — and what changed is that full-bleed now guarantees reachability.
+
+## Hue is not a property of a grey pixel
+
+Vibrance added saturation rather than scaling it:
+
+```
+boost = vibrance * 0.7 * pow(1 - s, 1.5)
+sat   = clamp(sat + boost, 0, 1)      // s == 0 still yields 0.7 * vibrance
+```
+
+A pixel with no colour therefore received colour, and the hue it received was
+whatever rounding had left in the channels. A grey card at vibrance +25 rendered
+at (140,112,111) in the shipping build. Inside a film look the same arithmetic
+amplified a residual of a tenth of a code value into a five-code spread, which
+is why a neutral ramp through `magicNatural` flipped from cool to warm between
+input 137 and 139.
+
+The fix is `chromaConfidence`, a smoothstep from two to ten code values of
+chroma, multiplied into the boost. Gate on **chroma, not HSL saturation**:
+saturation divides by lightness, so a dark pixel carrying two code values of
+chroma reports as 9% saturated and would sail through.
+
+It is worth being precise about why this is a gate and not a re-tuning. Every
+swatch with ten or more code values of chroma keeps **100%** of its previous
+boost, so the slider feels identical on real colour; only noise-dominated pixels
+change. Measured across the whole catalogue, the off-diagonal samples moved by a
+mean of 0.03 code values while the neutral diagonal moved by 0.83.
+
+### The invariant was already written, against the wrong subject
+
+`ColorScienceChecks` asserted *a neutral stays neutral through the full
+transform* — but walked only `InputProfile.normalizedPixel`, the log-to-display
+stage. The grading path was never handed a grey. That is how this survived 271
+checks and 100,957 comparisons.
+
+`GradingChecks.neutralAxisChecks` now sweeps every non-tinting control across its
+range against exact neutrals, and bounds chroma amplification on near-neutrals.
+Written before the fix, it failed on 21 comparisons — all of them vibrance, none
+of them any other control, which is what said the invariant was correctly scoped
+rather than merely strict.
+
+### Five copies, again
+
+Vibrance was implemented five times: `adjustments.ts`, `webgl-processor.ts`,
+`film-model.ts`, `ColorGrade.swift`, `FilmModel.swift`, plus the Metal kernel.
+The master-curve hue shift was three copies of one weight. The shared helper now
+lives in `color.ts` and `ColorConversion.swift`, so TypeScript and Swift each
+have one definition — but the GLSL and Metal copies are still copies, and the
+next arithmetic that has to agree in six places should be assumed to disagree in
+at least one until measured.
+
+## The shoulder was a highlight lift, not a shoulder
+
+`shoulderStr` documents itself as *highlight compression*. The implementation
+was
+
+```
+v(u) = 1 − exp(−k·u),   k = 1.6 + shoulderStr·2.8
+```
+
+which leaves the shoulder with slope `k` — about 2.6 on a default stock, against
+1 immediately below it. So highlights *expanded* by more than a stop of local
+contrast at the onset, and `v(u) > u` held until roughly `u = 0.85`: over most
+of its range the curve lifted highlights rather than compressing them. It only
+became compressive near white.
+
+The replacement is derived rather than tuned:
+
+```
+v(u) = u − e⁻ᵏ·uᵖ,   p = eᵏ − k
+```
+
+| property | value | why it matters |
+|---|---|---|
+| `v(0)` | 0 | joins at the onset |
+| `v'(0)` | 1 | C1 with the identity below — removes the step |
+| `v(1)` | 1 − e⁻ᵏ | the old endpoint, unchanged |
+| `v'(1)` | k·e⁻ᵏ | the old slope at white, unchanged |
+
+Monotone for every `k > 0`, and provably so: `e⁻ᵏ·p = 1 − k·e⁻ᵏ < 1`, so `v'`
+never reaches zero. No stock can be given a parameter that folds its tone scale.
+
+Both endpoints are preserved, so each stock's highlight rolloff survives; what
+changes is that the middle of the shoulder no longer lifts. Measured across the
+catalogue the mean move rises monotonically with luminance — 0.44 code values in
+the deepest band, 4.33 in the brightest — which is the signature a shoulder fix
+should have. Highlights are darker than they were, because they are no longer
+being pushed up.
+
+## A boolean skin test is a step
+
+`isSkinTone` returns a boolean, and the film model used it for three per-pixel
+blends. Neighbouring pixels either side of an edge of its window therefore get
+completely different treatment. It put a three-code jump into a `magicSunset`
+ramp at input 98 — where the pixel's saturation crosses the 0.05 edge — and left
+the blue channel *non-monotonic* across it, a brighter input rendering darker.
+On a face the same flip is the blotchy contour that `skinToneWeight` was written
+to avoid, and which `image-analysis.ts` had already documented in a comment
+nobody had acted on.
+
+All three now use the feathered weight. The hue guard changed shape too: it
+snapped a drifting hue all the way back once it passed 15°, so it was a step by
+construction. It now pulls back only the excess, scaled by skin confidence.
+
+### What the continuity probe is for
+
+`npm run audit:continuity` walks every look along the neutral axis and reports
+the largest change in slope between adjacent code values. It exists because
+these three defects were all invisible to a conformance suite that compares two
+implementations of the *same* wrong answer.
+
+Its first version sampled every 0.05 code values and reported every look as
+violently discontinuous — it was measuring `clampByte`'s rounding staircase, not
+the model. **Suspect the probe.** At one code value the rounding contributes at
+most 2, so anything above ~3 is the transform.
+
+| | worst slope jump |
+|---|---|
+| before any of this work | 8.41 error on the neutral axis, kinks at 98, 137 and 204–223 |
+| after the vibrance gate | 3.00 — the 137 kink gone |
+| after the shoulder | 3.00 — the 204–223 cluster gone |
+| after feathering skin | **2.00 — the rounding floor** |
+
+There is no longer a discontinuity anywhere in the film model that an 8-bit
+output could show.
+
+## Tetrahedral cube interpolation
+
+`CIColorCubeWithColorSpace` interpolates trilinearly — it blends all eight
+lattice corners around a sample, and six of those are off the neutral axis. On a
+saturating look they drag grey off grey. `darkroomLookCube` replaces it with
+tetrahedral interpolation, which walks the one tetrahedron of six the sample
+falls in and so touches four corners; on the neutral diagonal the intermediate
+terms cancel and the result is a straight line between the two neutral corners.
+
+Measured through the shipping binary, neutral axis, model converted into
+Display P3, **grain averaged over 128 rows** — see below for why that matters:
+
+| look | trilinear max | tetrahedral max |
+|---|---|---|
+| velvia50 | 3.25 | **1.64** |
+| magicNatural | 1.29 | 1.18 |
+| portra400 | 2.72 | 2.65 |
+
+Velvia gains most because it saturates hardest, which is what puts its
+off-diagonal corners far from the diagonal. Portra barely moves, and that is
+the expected result rather than a disappointing one: it is a gentle stock whose
+neighbouring corners sit close to the neutral axis to begin with.
+
+Across the full gamut it is a wash — mean identical to two decimal places, the
+worst velvia sample better (3.19 → 2.37), one portra sample marginally worse
+(5.51 → 6.04). The win is specifically on and near the neutral diagonal, which
+is where a cast is visible. Cost is ~5% of a 6 MP export, most of which is PNG
+encoding; the render difference is not measurable at this size.
+
+### The bug this nearly shipped with
+
+The cube image is laid out `x = r + g·size, y = b` so the flat index is
+`r + g·size + b·size²` — exactly `CIColorCube`'s own order, so both paths get
+byte-identical data with no repacking to get wrong.
+
+But **Core Image's origin is bottom left, while the bitmap rows are top down**,
+so row 0 of the data is the *last* row in image space. The blue axis came out
+inverted, which sent input 0 to the far corner of the cube and rendered black as
+white — 237 code values out.
+
+The pattern was copied from `CurveFilter`, which is correct. Its table is **one
+pixel tall**, so it cannot exhibit this. A pattern that is proven in production
+is only proven for the shape it is used in.
+
+### Why the first measurement said the fix did nothing
+
+Once flipped, the tetrahedral path measured the same as trilinear against the
+CPU model. The comparison was wrong, not the kernel: the CLI writes Display P3,
+and while a neutral *input* is identical in sRGB and P3, a look's *output* is
+not neutral — velvia at input 175 renders (192,202,185). Converting the model
+into P3 before comparing showed the real numbers above.
+
+**Validate the probe against a known-good path first.** Running the same harness
+against trilinear gave 0.28–1.34 mean, matching the TypeScript audit, which is
+what said the harness was sound and the kernel was not.
+
+### The check that caught the divergence
+
+`RenderChecks.lookCheck` compares the GPU against `ColorCube.sample`, and started
+failing at (128,128,128) on five stocks — the exact point where tetrahedral
+differs most. The check was right: the CPU sampler was still trilinear, so the
+two had genuinely diverged. The fix was to bring `ColorCube.sample` up to
+tetrahedral, not to widen the tolerance. It backs `.cube` export, so a difference
+there would have shipped a LUT that did not match what the app displayed.
+
+`resampleCubeLut` in the web engine is tetrahedral now too, for the same reason:
+resampling an imported 33³ LUT to the working 64³ was costing 3.00 code values
+on the neutral axis against 0.49.
+
+A first attempt to verify that used a channel-symmetric test LUT, where the eight
+corners around a diagonal point are symmetric and trilinear's average is neutral
+by construction — so it reported 0.0 for both and proved nothing. Real looks are
+asymmetric; the test had to be too.
+
+### Grain is not error
+
+An earlier version of these numbers reported portra400 at 3.89 code values and
+unchanged by tetrahedral, and that was recorded here as an open question about a
+GPU-to-CPU discrepancy. It was neither.
+
+**portra400 carries a grain spec and velvia50 barely does.** The measurement
+sampled one row of the rendered ramp, so it read the grain at that row as
+interpolation error. Eight identical input rows came back with a spread of 3
+code values on portra and 0 on velvia — which is the whole of the anomaly.
+
+Averaging 128 rows removes it and gives the numbers above. The lesson is the
+familiar one in a different costume: **the probe was measuring something the
+artefact does on purpose.** Any per-pixel comparison against the model has to
+either average the grain out or run on a stock that has none.
+
+The colour space was ruled out first, and worth keeping: an identity render
+(no look, no adjustment) agreed with a hand-written sRGB→XYZ→Display P3
+conversion to within 0.44 code values across eight probes, which is byte
+rounding. So the conversion was sound and the residual was real — it just was
+not what it looked like.

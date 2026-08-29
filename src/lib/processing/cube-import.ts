@@ -32,45 +32,72 @@ const sampleSource = (
   const gf = (g / (LUT_SIZE - 1)) * maxIndex;
   const bf = (b / (LUT_SIZE - 1)) * maxIndex;
 
-  const r0 = Math.floor(rf);
-  const g0 = Math.floor(gf);
-  const b0 = Math.floor(bf);
-  const r1 = Math.min(r0 + 1, maxIndex);
-  const g1 = Math.min(g0 + 1, maxIndex);
-  const b1 = Math.min(b0 + 1, maxIndex);
+  // Clamped so the upper corner is always a valid index.
+  const r0 = Math.min(Math.floor(rf), maxIndex - 1);
+  const g0 = Math.min(Math.floor(gf), maxIndex - 1);
+  const b0 = Math.min(Math.floor(bf), maxIndex - 1);
 
-  const rt = rf - r0;
-  const gt = gf - g0;
-  const bt = bf - b0;
+  const dr = rf - r0;
+  const dg = gf - g0;
+  const db = bf - b0;
 
   const read = (ri: number, gi: number, bi: number): [number, number, number] => {
     const offset = (ri + gi * size + bi * size * size) * 3;
     return [lut[offset], lut[offset + 1], lut[offset + 2]];
   };
+  const at = (x: number, y: number, z: number) => read(r0 + x, g0 + y, b0 + z);
 
-  const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+  const c000 = at(0, 0, 0);
+  const c111 = at(1, 1, 1);
 
-  const c000 = read(r0, g0, b0);
-  const c100 = read(r1, g0, b0);
-  const c010 = read(r0, g1, b0);
-  const c110 = read(r1, g1, b0);
-  const c001 = read(r0, g0, b1);
-  const c101 = read(r1, g0, b1);
-  const c011 = read(r0, g1, b1);
-  const c111 = read(r1, g1, b1);
+  // Tetrahedral, matching the engine's own cube samplers in ColorCube.swift and
+  // darkroomLookCube. Trilinear blends all eight corners, six of which are off
+  // the neutral axis, so resampling a saturating LUT pulled its greys off grey.
+  // An imported LUT should come back the shape its author drew.
+  const walk = (
+    from: [number, number, number],
+    to: [number, number, number],
+    i: 0 | 1 | 2,
+  ) => from[i] - to[i];
 
-  const mixChannel = (index: 0 | 1 | 2) => {
-    const r00 = mix(c000[index], c100[index], rt);
-    const r10 = mix(c010[index], c110[index], rt);
-    const r01 = mix(c001[index], c101[index], rt);
-    const r11 = mix(c011[index], c111[index], rt);
-    return mix(mix(r00, r10, gt), mix(r01, r11, gt), bt);
-  };
+  const combine = (
+    p: [number, number, number], q: [number, number, number],
+    u: [number, number, number], v: [number, number, number],
+    w: [number, number, number], x: [number, number, number],
+  ): [number, number, number] =>
+    [0, 1, 2].map(
+      (i) =>
+        c000[i as 0] +
+        walk(p, q, i as 0) * dr +
+        walk(u, v, i as 0) * dg +
+        walk(w, x, i as 0) * db,
+    ) as [number, number, number];
 
-  return [mixChannel(0), mixChannel(1), mixChannel(2)];
+  if (dr > dg) {
+    if (dg > db) {
+      const e1 = at(1, 0, 0), e2 = at(1, 1, 0);
+      return combine(e1, c000, e2, e1, c111, e2);
+    }
+    if (dr > db) {
+      const e1 = at(1, 0, 0), e2 = at(1, 0, 1);
+      return combine(e1, c000, c111, e2, e2, e1);
+    }
+    const e1 = at(0, 0, 1), e2 = at(1, 0, 1);
+    return combine(e2, e1, c111, e2, e1, c000);
+  }
+  if (db > dg) {
+    const e1 = at(0, 0, 1), e2 = at(0, 1, 1);
+    return combine(c111, e2, e2, e1, e1, c000);
+  }
+  if (db > dr) {
+    const e1 = at(0, 1, 0), e2 = at(0, 1, 1);
+    return combine(c111, e2, e1, c000, e2, e1);
+  }
+  const e1 = at(0, 1, 0), e2 = at(1, 1, 0);
+  return combine(e2, e1, e1, c000, c111, e2);
 };
 
-/** Trilinear resample to the editor's working 64³ LUT size. */
+/** Tetrahedral resample to the editor's working 64³ LUT size. */
 export const resampleCubeLut = (lut: Uint8Array, size: number): Uint8Array => {
   if (size === LUT_SIZE) return lut;
 

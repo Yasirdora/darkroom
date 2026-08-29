@@ -34,6 +34,28 @@ export const hexToRgb = (hex: string): Rgb => {
   };
 };
 
+/** Chroma below which a pixel is treated as neutral, in 0–1 units. */
+const CHROMA_FLOOR = 2 / 255;
+/** Chroma at or above which a pixel's hue is taken at face value. */
+const CHROMA_FULL = 10 / 255;
+
+/**
+ * How much a pixel's hue can be trusted, 0–1, from its chroma.
+ *
+ * Below two code values of chroma a pixel is grey and its hue is whatever
+ * rounding left behind; by ten it is carrying real colour. Any effect that
+ * acts on hue has to fade out across that span, or it turns noise into a
+ * cast — an ungated vibrance put a grey card at (145,111,111).
+ *
+ * Gate on chroma rather than HSL saturation: saturation divides by lightness,
+ * so a dark pixel carrying two code values of chroma reports as 9% saturated.
+ */
+export const chromaConfidence = (r: number, g: number, b: number): number => {
+  const chroma = (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+  const t = Math.min(1, Math.max(0, (chroma - CHROMA_FLOOR) / (CHROMA_FULL - CHROMA_FLOOR)));
+  return t * t * (3 - 2 * t);
+};
+
 export const rgbToHsl = (r: number, g: number, b: number): Hsl => {
   const rn = r / 255;
   const gn = g / 255;
