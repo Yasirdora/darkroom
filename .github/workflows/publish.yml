@@ -8,11 +8,10 @@ on:
 permissions:
   contents: read
   id-token: write
-  packages: write
 
 jobs:
   publish:
-    name: Publish to npm and GitHub Packages
+    name: Publish to npm
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: npm
@@ -41,22 +40,3 @@ jobs:
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Set up Node.js for GitHub Packages
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          registry-url: https://npm.pkg.github.com
-
-      - name: Rename for GitHub Packages
-        run: npm pkg set name="@yasirdora/darkroom-js"
-
-      - name: Publish to GitHub Packages
-        run: |
-          if [[ "${{ github.ref_name }}" == *-* ]]; then
-            npm publish --ignore-scripts --tag beta
-          else
-            npm publish --ignore-scripts
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
