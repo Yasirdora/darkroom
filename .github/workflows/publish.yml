@@ -49,7 +49,7 @@ jobs:
           registry-url: https://npm.pkg.github.com
 
       - name: Rename for GitHub Packages
-        run: npm pkg set name="@yasirdora/darkroom-pkg"
+        run: npm pkg set name="@yasirdora/darkroom-js"
 
       - name: Publish to GitHub Packages
         run: |
