@@ -9,7 +9,7 @@ await withPackedDarkroomPackage(
   async ({ metadata }) => {
     const result = await verifyPackedDarkroomPackage(metadata);
     console.log(
-      `Verified @darkroom/core tarball: ${result.fileCount} files, ` +
+      `Verified @coloristic.org/darkroom tarball: ${result.fileCount} files, ` +
         `${result.packedBytes} packed bytes, ${result.unpackedBytes} unpacked bytes.`,
     );
   },

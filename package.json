@@ -1,6 +1,6 @@
 {
-  "name": "@darkroom/core",
-  "version": "0.1.0",
+  "name": "@coloristic.org/darkroom",
+  "version": "0.2.0",
   "description": "A local-first, framework-independent TypeScript photo-grading and 3D LUT engine.",
   "type": "module",
   "license": "MIT",

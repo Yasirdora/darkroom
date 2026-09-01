@@ -1,15 +1,15 @@
 # Darkroom
 
-[![npm](https://img.shields.io/npm/v/@darkroom/core?color=0b7285&label=npm)](https://www.npmjs.com/package/@darkroom/core)
+[![npm](https://img.shields.io/npm/v/@coloristic.org/darkroom?color=0b7285&label=npm)](https://www.npmjs.com/package/@coloristic.org/darkroom)
 [![CI](https://github.com/Yasirdora/darkroom/actions/workflows/ci.yml/badge.svg)](https://github.com/Yasirdora/darkroom/actions/workflows/ci.yml)
 [![dependencies](https://img.shields.io/badge/runtime%20dependencies-0-0b7285)](#dependency-policy)
-[![license](https://img.shields.io/npm/l/@darkroom/core?color=0b7285)](./LICENSE)
+[![license](https://img.shields.io/npm/l/@coloristic.org/darkroom?color=0b7285)](./LICENSE)
 
 A local-first, framework-independent photo-grading and 3D LUT engine written
 in TypeScript. Zero runtime dependencies, DOM-free core, ESM only.
 
 ```sh
-npm install @darkroom/core
+npm install @coloristic.org/darkroom
 ```
 
 ## Why Darkroom
@@ -61,7 +61,7 @@ criteria for any future exception are recorded in
 ## Installation
 
 ```sh
-npm install @darkroom/core
+npm install @coloristic.org/darkroom
 ```
 
 The package is ESM-only. CommonJS `require()` and package-internal deep imports
@@ -71,9 +71,9 @@ are not supported.
 
 | Import | Environment | Purpose |
 | --- | --- | --- |
-| `@darkroom/core` | Node.js, browsers, module workers | DOM-free pixel processing, grades, LUTs, analysis, transforms, and profile helpers |
-| `@darkroom/core/browser` | Browsers with Canvas 2D and `createImageBitmap` | `File` decoding and conversions between browser image objects and `PixelBuffer` |
-| `@darkroom/core/presets` | Node.js, browsers, module workers | Immutable preset metadata and lazy compilation into generic engine `Look` values |
+| `@coloristic.org/darkroom` | Node.js, browsers, module workers | DOM-free pixel processing, grades, LUTs, analysis, transforms, and profile helpers |
+| `@coloristic.org/darkroom/browser` | Browsers with Canvas 2D and `createImageBitmap` | `File` decoding and conversions between browser image objects and `PixelBuffer` |
+| `@coloristic.org/darkroom/presets` | Node.js, browsers, module workers | Immutable preset metadata and lazy compilation into generic engine `Look` values |
 
 The root entry never imports either optional subpath. Importing the root alone
 therefore excludes browser adapters and preset catalog data from its module graph.
@@ -88,7 +88,7 @@ import {
   render,
   renderForExport,
   type GradeInput,
-} from '@darkroom/core';
+} from '@coloristic.org/darkroom';
 
 const input = createPixelBuffer({
   width: 2,
@@ -133,11 +133,11 @@ The browser adapter validates the encoded file type, byte size, dimensions, and
 pixel count before allocating the decoded buffer:
 
 ```ts
-import { render } from '@darkroom/core';
+import { render } from '@coloristic.org/darkroom';
 import {
   decodeImageFile,
   pixelBufferToImageData,
-} from '@darkroom/core/browser';
+} from '@coloristic.org/darkroom/browser';
 
 async function gradeFile(file: File): Promise<ImageData> {
   const decoded = await decodeImageFile(file, {
@@ -168,13 +168,13 @@ canvas presentation, worker lifecycle, object URLs, downloads, and storage.
 Presets live in the same installed tarball but are opt-in through `/presets`:
 
 ```ts
-import { render } from '@darkroom/core';
+import { render } from '@coloristic.org/darkroom';
 import {
   compilePreset,
   getPreset,
   isPresetId,
   presets,
-} from '@darkroom/core/presets';
+} from '@coloristic.org/darkroom/presets';
 
 const metadata = getPreset('portra400');
 const look = compilePreset('portra400', { lutSize: 33 });
@@ -202,7 +202,7 @@ import {
   formatCube,
   parseCube,
   render,
-} from '@darkroom/core';
+} from '@coloristic.org/darkroom';
 
 const lut = parseCube(cubeText, {
   fallbackTitle: 'Imported look',
@@ -243,7 +243,7 @@ The package uses named exports. Major groups include:
 | Contracts | `DarkroomError`, `DARKROOM_LIMITS`, exported TypeScript interfaces and unions |
 
 The export map—not files under `dist/`—defines the supported API. Imports such
-as `@darkroom/core/dist/index.js` are intentionally blocked.
+as `@coloristic.org/darkroom/dist/index.js` are intentionally blocked.
 
 ## Resource limits
 
@@ -276,7 +276,7 @@ machine-readable `code`:
 import {
   DarkroomError,
   parseCube,
-} from '@darkroom/core';
+} from '@coloristic.org/darkroom';
 
 try {
   const lut = parseCube(untrustedText, { size: 33 });
