@@ -1,8 +1,8 @@
 /**
  * DOM-free public API for the Darkroom processing engine.
  *
- * Browser decoding lives in `@coloristic.org/darkroom/browser`; the optional
- * built-in catalog lives in `@coloristic.org/darkroom/presets`.
+ * Browser decoding lives in `@darkroom/core/browser`; the optional
+ * built-in catalog lives in `@darkroom/core/presets`.
  */
 
 export type {

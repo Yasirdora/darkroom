@@ -22,9 +22,9 @@ const writeJson = (path, value) =>
   writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 
 const runtimeSmokeSource = `
-const core = await import('@coloristic.org/darkroom');
-const browser = await import('@coloristic.org/darkroom/browser');
-const presets = await import('@coloristic.org/darkroom/presets');
+const core = await import('@darkroom/core');
+const browser = await import('@darkroom/core/browser');
+const presets = await import('@darkroom/core/presets');
 
 const expectedExports = {
   core: [
@@ -72,7 +72,7 @@ if (!presets.isPresetId('portra400') || presets.getPreset('portra400')?.id !== '
 }
 
 try {
-  await import('@coloristic.org/darkroom/dist/index.js');
+  await import('@darkroom/core/dist/index.js');
   throw new Error('A package-internal deep import unexpectedly succeeded.');
 } catch (error) {
   if (error?.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED') throw error;
@@ -122,14 +122,14 @@ import {
   type SceneProfile,
   type Transform,
   type VectorscopeData,
-} from '@coloristic.org/darkroom';
+} from '@darkroom/core';
 import {
   type CompilePresetOptions,
   type PresetCategory,
   type PresetId,
   type PresetMetadata,
   type PresetTag,
-} from '@coloristic.org/darkroom/presets';
+} from '@darkroom/core/presets';
 
 const source: PixelBuffer = createPixelBuffer({ width: 1, height: 1, data: [0, 0, 0, 255] });
 const grade: Grade = createDefaultGrade();
@@ -155,7 +155,7 @@ import {
   type DecodeColorSpaceConversion,
   type DecodeImageFileOptions,
   type DecodedImageFile,
-} from '@coloristic.org/darkroom/browser';
+} from '@darkroom/core/browser';
 
 const decode: typeof decodeImageFile = decodeImageFile;
 type BrowserTypes = [DecodeColorSpaceConversion, DecodeImageFileOptions, DecodedImageFile];
@@ -187,14 +187,14 @@ const PRESETS_GZIP_BUDGET = 200 * 1024;
 const WORKER_GZIP_BUDGET = 125 * 1024;
 
 const viteRootSource = `
-import * as darkroom from '@coloristic.org/darkroom';
+import * as darkroom from '@darkroom/core';
 
 (globalThis as Record<string, unknown>).__darkroomRoot = darkroom;
 `;
 
 const vitePresetsSource = `
-import * as darkroom from '@coloristic.org/darkroom';
-import * as presets from '@coloristic.org/darkroom/presets';
+import * as darkroom from '@darkroom/core';
+import * as presets from '@darkroom/core/presets';
 
 (globalThis as Record<string, unknown>).__darkroomWithPresets = { darkroom, presets };
 `;
@@ -205,7 +205,7 @@ worker.postMessage('inspect');
 `;
 
 const viteWorkerSource = `
-import * as darkroom from '@coloristic.org/darkroom';
+import * as darkroom from '@darkroom/core';
 
 self.addEventListener('message', () => {
   self.postMessage(Object.keys(darkroom));

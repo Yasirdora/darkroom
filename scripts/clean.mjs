@@ -2,7 +2,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const EXPECTED_PACKAGE_NAME = '@coloristic.org/darkroom';
+const EXPECTED_PACKAGE_NAME = '@darkroom/core';
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const packageDirectory = resolve(scriptDirectory, '..');

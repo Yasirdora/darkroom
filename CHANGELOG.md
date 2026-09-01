@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@coloristic.org/darkroom` are documented here. The
+All notable changes to `@darkroom/core` are documented here. The
 package follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
@@ -15,7 +15,7 @@ largest gaps in its test coverage.
 
 - `publishConfig.tag` no longer pins publishes to the `beta` dist-tag. A stable
   release published under that tag would have left `latest` pointing at
-  `0.1.0-beta.0` indefinitely, so `npm install @coloristic.org/darkroom` would
+  `0.1.0-beta.0` indefinitely, so `npm install @darkroom/core` would
   have kept resolving to the first beta.
 
 ### Added
@@ -55,7 +55,7 @@ largest gaps in its test coverage.
 - Histograms, vectorscopes, scene analysis, automatic enhancement, white balance, and reference color matching.
 - Input-profile transforms plus bounded ICC, EXIF, JPEG-dimension, and orientation inspection.
 - Browser adapters for validated JPEG, PNG, and WebP `File` decoding and browser image conversion.
-- An optional, lazy built-in look catalog under `@coloristic.org/darkroom/presets`.
+- An optional, lazy built-in look catalog under `@darkroom/core/presets`.
 - Stable `DarkroomError` codes and exported `DARKROOM_LIMITS` resource boundaries.
 - Type declarations, declaration maps, JavaScript source maps, and an explicit publish allowlist.
 - Enforced statement, branch, function, and line coverage floors for the engine suite.

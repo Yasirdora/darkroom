@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   publish:
-    name: Publish @coloristic.org/darkroom
+    name: Publish @darkroom/core
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: npm

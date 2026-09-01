@@ -229,7 +229,7 @@ export const verifyPackedDarkroomPackage = async (metadata) => {
   );
   assertRuntimeDependencyFree(manifest);
 
-  if (manifest.name !== '@coloristic.org/darkroom') {
+  if (manifest.name !== '@darkroom/core') {
     throw new Error('Package name does not match the intended npm scope.');
   }
   if (manifest.version === '0.0.0') {

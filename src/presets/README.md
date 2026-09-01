@@ -1,12 +1,12 @@
 # Built-in presets
 
 The public preset catalog is available only from
-`@coloristic.org/darkroom/presets`. The package root does not import or
+`@darkroom/core/presets`. The package root does not import or
 initialize the catalog.
 
 ```ts
-import { applyLook } from '@coloristic.org/darkroom';
-import { compilePreset, getPreset } from '@coloristic.org/darkroom/presets';
+import { applyLook } from '@darkroom/core';
+import { compilePreset, getPreset } from '@darkroom/core/presets';
 
 const metadata = getPreset('tealOrange');
 const look = compilePreset('tealOrange', { lutSize: 33 });
